@@ -9,7 +9,7 @@ import Participants from '../src/workspace/Participants'
 import {formatIC, dateLabel, sortSessions} from '../src/workspace/api'
 
 let sessions, companies, participants
-const summary = {total_training_revenue:148525.44,total_rebate_credit:120314,hrdc_paid_to_slx:131255.04,net_training_contribution:28211.44,rebate_credit_used:76909,unutilised_rebate_credit:43405,rebate_utilisation_percent:63.9,number_of_trainings:7,total_participants:86}
+const summary = {total_training_revenue:148525.44,total_rebate_credit:120314,hrdc_paid_to_slx:131255.04,net_training_contribution:28211.44,rebate_credit_used:76909,unutilised_rebate_credit:43405,rebate_utilisation_percent:63.9,number_of_trainings:7,number_of_companies:2,total_participants:86}
 beforeEach(() => {
   sessions = [{id:'s1',position:1,name:'April session',startDate:'2026-04-07',endDate:'2026-04-08',location:'Kuala Lumpur'}, {id:'s2',position:2,name:'September session',startDate:'2026-09-07',endDate:'2026-09-08',location:'Penang'}]
   companies = [{id:'c1',sessionId:'s1',companyName:'Same Company',participantCount:2,unitPrice:1799,total:3598,grantStatus:'approved',sessionName:'April session'}, {id:'c2',sessionId:'s2',companyName:'Same Company',participantCount:0,unitPrice:1799,total:0,grantStatus:'follow_up',sessionName:'September session'}]
@@ -135,6 +135,8 @@ test('participant add, status filter, search and removal operate through the API
 test('all sidebar destinations, help, sidebar toggle and preferences respond', async () => {
   const user=userEvent.setup();render(<Workspace/>)
   await screen.findByText('RM 148,525.44')
+  expect(screen.getByText(/Live totals from the training, company, participant and rebate records/)).toBeTruthy()
+  expect(screen.getByText('Company records')).toBeTruthy()
   await user.click(screen.getByRole('button',{name:'Toggle navigation'}));expect(document.querySelector('.nav-collapsed')).toBeTruthy()
   await user.click(screen.getByRole('link',{name:'Credit management'}));await screen.findByText('Allocation by usage type')
   await user.click(screen.getByRole('link',{name:'Participants'}));await screen.findByText('Participant register')

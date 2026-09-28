@@ -16,13 +16,50 @@ export class TrainingService {
 
   async reporting(year: number) {
     if (!Number.isInteger(year) || year < 2020 || year > 2100) throw new HttpErrors.UnprocessableEntity('Choose a valid reporting year.');
-    const [summary, monthly, usage, years] = await Promise.all([
-      this.pool.query('SELECT * FROM dashboard_summaries WHERE reporting_year = $1', [year]),
-      this.pool.query(`SELECT m.*, p.reporting_month AS month FROM monthly_training_performance m JOIN reporting_periods p ON p.id = m.reporting_period_id WHERE p.reporting_year = $1 ORDER BY p.reporting_month`, [year]),
-      this.pool.query(`SELECT c.name, COALESCE(SUM(r.amount_used),0) AS amount, COALESCE(SUM(r.usage_count),0) AS count FROM credit_usage_categories c LEFT JOIN credit_usage_records r ON r.category_id = c.id AND r.reporting_period_id IN (SELECT id FROM reporting_periods WHERE reporting_year = $1) GROUP BY c.id ORDER BY c.display_order`, [year]),
-      this.pool.query('SELECT reporting_year AS year FROM dashboard_summaries ORDER BY reporting_year DESC'),
+    const [records, participantRecords, availableYears] = await Promise.all([
+      this.pool.query(`SELECT p.id AS "sessionId", to_char(p.start_date, 'YYYY-MM-DD') AS "startDate", c.id AS "companyId", c.participant_count AS "participantCount", c.gross_hrdc_claim AS "grossClaim", c.grant_status AS "grantStatus", c.rebate_profile AS "rebateProfile" FROM training_programs p LEFT JOIN training_companies c ON c.training_program_id = p.id WHERE EXTRACT(YEAR FROM p.start_date) = $1 ORDER BY p.start_date, c.created_at`, [year]),
+      this.pool.query(`SELECT COUNT(cp.id)::int AS count FROM company_participants cp JOIN training_companies c ON c.id = cp.training_company_id JOIN training_programs p ON p.id = c.training_program_id WHERE EXTRACT(YEAR FROM p.start_date) = $1`, [year]),
+      this.pool.query(`SELECT DISTINCT EXTRACT(YEAR FROM start_date)::int AS year FROM training_programs WHERE start_date IS NOT NULL ORDER BY year DESC`),
     ]);
-    return {summary:summary.rows[0] || null, monthly:monthly.rows, usage:usage.rows, years:years.rows.map(r => r.year)};
+    const numeric = (value: unknown) => {
+      const parsed = Number(String(value ?? '').replace(/[^0-9.-]/g, ''));
+      return Number.isFinite(parsed) ? parsed : 0;
+    };
+    const rounded = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+    const monthly = Array.from({length: 12}, (_, index) => ({month:index + 1, training_revenue:0, rebate_issued:0, credit_used:0, remaining_credit:0, number_of_trainings:0, net_contribution:0, sessions:new Set<string>()}));
+    const sessions = new Set<string>();
+    const usageByPlan = new Map<string, {name:string; amount:number; count:number}>();
+    let trainingRevenue = 0, rebateIssued = 0, creditUsed = 0, hrdcPaid = 0, totalParticipants = 0, numberOfCompanies = 0;
+    for (const row of records.rows) {
+      sessions.add(row.sessionId);
+      const calendarMonth = Number(String(row.startDate || '').slice(5, 7));
+      const monthIndex = Number.isInteger(calendarMonth) && calendarMonth >= 1 && calendarMonth <= 12 ? calendarMonth - 1 : 0;
+      const month = monthly[monthIndex];
+      month.sessions.add(row.sessionId);
+      if (!row.companyId) continue;
+      const rebateProfile = row.rebateProfile || {};
+      const participants = numeric(row.participantCount);
+      const revenue = numeric(row.grossClaim) * 0.96;
+      const issued = rebateProfile.creditIssued !== '' && rebateProfile.creditIssued != null ? numeric(rebateProfile.creditIssued) : participants * 1399;
+      const used = numeric(rebateProfile.creditUsed);
+      const remaining = Math.max(issued - used, 0);
+      trainingRevenue += revenue; rebateIssued += issued; creditUsed += used; totalParticipants += participants; numberOfCompanies++;
+      if (row.grantStatus === 'approved') hrdcPaid += revenue;
+      month.training_revenue += revenue; month.rebate_issued += issued; month.credit_used += used; month.remaining_credit += remaining; month.net_contribution += revenue - issued;
+      const plan = rebateProfile.rebatePlan || rebateProfile.currentPlan || 'Other';
+      const usage = usageByPlan.get(plan) || {name:plan, amount:0, count:0};
+      usage.amount += used; if (used > 0) usage.count++; usageByPlan.set(plan, usage);
+    }
+    const unutilised = Math.max(rebateIssued - creditUsed, 0);
+    const summary = sessions.size ? {
+      total_training_revenue:rounded(trainingRevenue), total_rebate_credit:rounded(rebateIssued), hrdc_paid_to_slx:rounded(hrdcPaid), net_training_contribution:rounded(trainingRevenue - rebateIssued), rebate_credit_used:rounded(creditUsed), unutilised_rebate_credit:rounded(unutilised), rebate_utilisation_percent:rebateIssued ? rounded(creditUsed / rebateIssued * 100) : 0, number_of_trainings:sessions.size, number_of_companies:numberOfCompanies, total_participants:totalParticipants, participant_records:numeric(participantRecords.rows[0]?.count),
+    } : null;
+    return {
+      summary,
+      monthly:monthly.map(month => ({month:month.month, training_revenue:rounded(month.training_revenue), rebate_issued:rounded(month.rebate_issued), credit_used:rounded(month.credit_used), remaining_credit:rounded(month.remaining_credit), number_of_trainings:month.sessions.size, net_contribution:rounded(month.net_contribution)})),
+      usage:[...usageByPlan.values()].map(item => ({...item, amount:rounded(item.amount)})).sort((a, b) => b.amount - a.amount || a.name.localeCompare(b.name)),
+      years:availableYears.rows.map(row => row.year),
+    };
   }
 
   async listSessions(search = '') {

@@ -5,3 +5,4 @@ backend/node_modules/
 dist/
 backend/dist/
 migration-local-data.sql
+*.tar.gz

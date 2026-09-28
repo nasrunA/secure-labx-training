@@ -1,0 +1,32 @@
+.secondary-metrics {
+  grid-template-columns: repeat(6, 1fr);
+}
+
+.data-note {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #74858f;
+  font-size: 11px;
+}
+
+.live-data-dot {
+  width: 7px;
+  height: 7px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #21866f;
+  box-shadow: 0 0 0 3px #dff1eb;
+}
+
+@media (max-width: 1250px) {
+  .secondary-metrics {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .secondary-metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}

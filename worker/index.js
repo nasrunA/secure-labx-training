@@ -9,7 +9,46 @@ function decodeDataUrl(data){const match=/^data:([^;,]+)?(;base64)?,(.*)$/.exec(
 async function storeFiles(profile,env,companyId){for(const group of ['referenceFiles','relatedFiles']){if(!Array.isArray(profile[group]))continue;profile[group]=await Promise.all(profile[group].map(async file=>{if(!file?.data?.startsWith('data:'))return file;const decoded=decodeDataUrl(file.data);if(!decoded)return file;const key=`companies/${companyId}/${newId()}`;await env.BUCKET.put(key,decoded.bytes,{httpMetadata:{contentType:file.type||decoded.type},customMetadata:{filename:file.name||'document'}});return{name:file.name||'document',type:file.type||decoded.type,size:file.size||decoded.bytes.length,key,data:`/api/files/${encodeURIComponent(key)}`}}))}return profile}
 function exposeFiles(profile){for(const group of ['referenceFiles','relatedFiles'])if(Array.isArray(profile[group]))profile[group]=profile[group].map(file=>file?.key?{...file,data:`/api/files/${encodeURIComponent(file.key)}`}:file);return profile}
 
-async function reporting(env,year){const summary=await env.DB.prepare('SELECT * FROM dashboard_summaries WHERE reporting_year=?').bind(year).first();const monthly=(await env.DB.prepare(`SELECT m.*,p.reporting_month month FROM monthly_training_performance m JOIN reporting_periods p ON p.id=m.reporting_period_id WHERE p.reporting_year=? ORDER BY p.reporting_month`).bind(year).all()).results;const usage=(await env.DB.prepare(`SELECT c.name,COALESCE(SUM(r.amount_used),0) amount,COALESCE(SUM(r.usage_count),0) count FROM credit_usage_categories c LEFT JOIN credit_usage_records r ON r.category_id=c.id AND r.reporting_period_id IN (SELECT id FROM reporting_periods WHERE reporting_year=?) GROUP BY c.id ORDER BY c.display_order`).bind(year).all()).results;const years=(await env.DB.prepare('SELECT reporting_year year FROM dashboard_summaries ORDER BY reporting_year DESC').all()).results.map(row=>row.year);return{summary,monthly,usage,years}}
+const number=value=>{const parsed=Number(String(value??'').replace(/[^0-9.-]/g,''));return Number.isFinite(parsed)?parsed:0}
+const rounded=value=>Math.round((value+Number.EPSILON)*100)/100
+function assembleReporting(rows,participantRecords,years){
+  const months=Array.from({length:12},(_,index)=>({month:index+1,training_revenue:0,rebate_issued:0,credit_used:0,remaining_credit:0,number_of_trainings:0,net_contribution:0,sessions:new Set()}))
+  const sessions=new Set(),usageByPlan=new Map()
+  let trainingRevenue=0,rebateIssued=0,creditUsed=0,hrdcPaid=0,totalParticipants=0,numberOfCompanies=0
+  for(const row of rows){
+    sessions.add(row.sessionId)
+    const calendarMonth=Number(String(row.startDate||'').slice(5,7))
+    const monthIndex=Number.isInteger(calendarMonth)&&calendarMonth>=1&&calendarMonth<=12?calendarMonth-1:0
+    const month=months[monthIndex]
+    month.sessions.add(row.sessionId)
+    if(!row.companyId)continue
+    const rebateProfile=typeof row.rebateProfile==='string'?parse(row.rebateProfile):(row.rebateProfile||{})
+    const participants=number(row.participantCount),revenue=number(row.grossClaim)*.96
+    const issued=rebateProfile.creditIssued!==''&&rebateProfile.creditIssued!=null?number(rebateProfile.creditIssued):participants*1399
+    const used=number(rebateProfile.creditUsed),remaining=Math.max(issued-used,0)
+    trainingRevenue+=revenue;rebateIssued+=issued;creditUsed+=used;totalParticipants+=participants;numberOfCompanies++
+    if(row.grantStatus==='approved')hrdcPaid+=revenue
+    month.training_revenue+=revenue;month.rebate_issued+=issued;month.credit_used+=used;month.remaining_credit+=remaining;month.net_contribution+=revenue-issued
+    const plan=rebateProfile.rebatePlan||rebateProfile.currentPlan||'Other'
+    const usage=usageByPlan.get(plan)||{name:plan,amount:0,count:0}
+    usage.amount+=used;if(used>0)usage.count++;usageByPlan.set(plan,usage)
+  }
+  const unutilised=Math.max(rebateIssued-creditUsed,0)
+  return{
+    summary:sessions.size?{total_training_revenue:rounded(trainingRevenue),total_rebate_credit:rounded(rebateIssued),hrdc_paid_to_slx:rounded(hrdcPaid),net_training_contribution:rounded(trainingRevenue-rebateIssued),rebate_credit_used:rounded(creditUsed),unutilised_rebate_credit:rounded(unutilised),rebate_utilisation_percent:rebateIssued?rounded(creditUsed/rebateIssued*100):0,number_of_trainings:sessions.size,number_of_companies:numberOfCompanies,total_participants:totalParticipants,participant_records:number(participantRecords)}:null,
+    monthly:months.map(month=>({month:month.month,training_revenue:rounded(month.training_revenue),rebate_issued:rounded(month.rebate_issued),credit_used:rounded(month.credit_used),remaining_credit:rounded(month.remaining_credit),number_of_trainings:month.sessions.size,net_contribution:rounded(month.net_contribution)})),
+    usage:[...usageByPlan.values()].map(item=>({...item,amount:rounded(item.amount)})).sort((a,b)=>b.amount-a.amount||a.name.localeCompare(b.name)),
+    years:[...new Set(years.map(number).filter(Boolean))].sort((a,b)=>b-a)
+  }
+}
+async function reporting(env,year){
+  const [companies,participants,availableYears]=await Promise.all([
+    env.DB.prepare(`SELECT p.id sessionId,p.start_date startDate,c.id companyId,c.participant_count participantCount,c.gross_hrdc_claim grossClaim,c.grant_status grantStatus,c.rebate_profile rebateProfile FROM training_programs p LEFT JOIN training_companies c ON c.training_program_id=p.id WHERE substr(p.start_date,1,4)=? ORDER BY p.start_date,c.created_at`).bind(String(year)).all(),
+    env.DB.prepare(`SELECT COUNT(cp.id) participantRecords FROM company_participants cp JOIN training_companies c ON c.id=cp.training_company_id JOIN training_programs p ON p.id=c.training_program_id WHERE substr(p.start_date,1,4)=?`).bind(String(year)).first(),
+    env.DB.prepare(`SELECT DISTINCT CAST(substr(start_date,1,4) AS INTEGER) year FROM training_programs WHERE start_date IS NOT NULL ORDER BY year DESC`).all()
+  ])
+  return assembleReporting(companies.results,participants?.participantRecords||0,availableYears.results.map(row=>row.year))
+}
 
 export default{async fetch(request,env){const url=new URL(request.url);if(!url.pathname.startsWith('/api/'))return env.ASSETS.fetch(request);const path=url.pathname.slice(5);try{
   if(request.method==='GET'&&path.startsWith('files/')){const key=decodeURIComponent(path.slice(6)),object=await env.BUCKET.get(key);if(!object)return new Response('Not found',{status:404});const responseHeaders=new Headers();object.writeHttpMetadata(responseHeaders);responseHeaders.set('etag',object.httpEtag);responseHeaders.set('content-disposition',`inline; filename="${(object.customMetadata?.filename||'document').replaceAll('"','')}"`);return new Response(object.body,{headers:responseHeaders})}
