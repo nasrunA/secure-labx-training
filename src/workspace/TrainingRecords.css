@@ -1,0 +1,47 @@
+.training-record-table{table-layout:auto;min-width:1600px;font-size:12px}
+.training-record-table th{white-space:normal;line-height:1.25;padding:12px 14px;vertical-align:bottom;background:#24536f!important;color:#fff!important;border-bottom-color:#193d53!important;font-size:10px;letter-spacing:.15px}
+.training-record-table td{padding:14px;line-height:1.35;color:#314a5b!important;font-weight:500}
+.training-record-table td strong{color:#17394e!important;font-weight:700}
+.training-record-table th:nth-child(1){width:75px}
+.training-record-table th:nth-child(2){width:145px}
+.training-record-table th:nth-child(3){width:210px}
+.training-record-table th:nth-child(4){width:105px}
+.training-record-table th:nth-child(5),.training-record-table th:nth-child(6),.training-record-table th:nth-child(7),.training-record-table th:nth-child(8){width:150px}
+.training-record-table th:nth-child(9),.training-record-table th:nth-child(10){width:110px}.training-record-table th:nth-child(11){width:210px}
+.slx-table.training-record-table .numeric{white-space:nowrap;font-size:12px;text-align:center}
+.training-record-table td:nth-child(1),.training-record-table td:nth-child(4),.training-record-table td:nth-child(9),.training-record-table td:nth-child(10){text-align:center}
+.training-rebate-badge{display:inline-block;padding:4px 9px;border-radius:14px;font-size:10px;font-weight:700;line-height:1.2}
+.training-rebate-badge.fully_used{background:#dff7e8;color:#258254}
+.training-rebate-badge.unused{background:#fff0cf;color:#a16a00}
+.slx-table.training-record-table .training-record-status{width:120px;height:34px;padding:5px 28px 5px 10px;border:1px solid #cfd9e1!important;border-radius:4px;font-size:11px;font-weight:600;line-height:1;color:#3f5364!important;background:#fff!important;cursor:pointer}
+.slx-table.training-record-table .training-record-status:hover{border-color:#94aab8!important;background:#f9fbfc!important}
+.slx-table.training-record-table .training-record-status.follow_up{background:#dbeeff!important;border-color:#9bc8f1!important;color:#075da5!important}
+.slx-table.training-record-table .training-record-status.applied,.slx-table.training-record-table .training-record-status.unused{background:#fff0b8!important;border-color:#f1d66c!important;color:#925b00!important}
+.slx-table.training-record-table .training-record-status.approved,.slx-table.training-record-table .training-record-status.fully_used{background:#cef5d7!important;border-color:#8edda2!important;color:#087234!important}
+.slx-table.training-record-table .training-record-status.rejected{background:#ffd5d2!important;border-color:#eea29b!important;color:#a5231c!important}
+.training-record-status:focus{outline:2px solid #8ac9c3;outline-offset:1px}
+.training-record-status:disabled{cursor:wait}
+.training-record-remark{width:190px;height:34px;border:1px solid #c7d5de;border-radius:4px;padding:6px 9px;color:#294554;background:#fff;font-size:11px}
+.training-record-remark:not(:placeholder-shown){background:#178457;border-color:#178457;color:#fff;font-weight:600}
+.training-record-remark:not(:placeholder-shown)::placeholder{color:#fff}
+.training-record-remark.bill,.training-record-remark.custom{background:#178457!important;border-color:#178457!important;color:#fff!important}
+.training-record-remark.device-subscription{background:#1772bb!important;border-color:#1772bb!important;color:#fff!important}
+.training-record-remark.arrears{background:#c92420!important;border-color:#c92420!important;color:#fff!important}
+.training-record-remark:focus{outline:2px solid #8ac9c3;outline-offset:1px}
+.training-record-count{font-size:11px;color:#73818c;white-space:nowrap}
+.training-record-metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:-8px 0 14px}
+.training-record-metrics>div{position:relative;overflow:hidden;background:linear-gradient(135deg,#fff 0%,#f8fbfc 100%);border:1px solid #dbe5eb;border-radius:8px;padding:18px 20px;min-width:0;box-shadow:0 3px 12px rgba(30,60,80,.055)}
+.training-record-metrics>div::before{content:"";position:absolute;inset:0 auto 0 0;width:4px;background:#2e86b8}
+.training-record-metrics>div::after{content:"";position:absolute;width:68px;height:68px;right:-20px;top:-24px;border-radius:50%;background:#2e86b814}
+.training-record-metrics>div:nth-child(2)::before{background:#148a7e}.training-record-metrics>div:nth-child(2)::after{background:#148a7e14}.training-record-metrics>div:nth-child(3)::before{background:#c8831f}.training-record-metrics>div:nth-child(3)::after{background:#c8831f14}.training-record-metrics>div:nth-child(4)::before{background:#6557a6}.training-record-metrics>div:nth-child(4)::after{background:#6557a614}
+.training-record-metrics span{display:block;position:relative;color:#64798a;font-size:10px;font-weight:700;letter-spacing:.35px;text-transform:uppercase;margin-bottom:9px}
+.training-record-metrics strong{display:block;position:relative;color:#233e50;font-size:22px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.training-record-filters{display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#f9fcfd,#eef6f7);border:1px solid #d6e4e7;border-radius:8px;padding:12px;margin-bottom:18px;box-shadow:0 2px 8px rgba(30,60,80,.035)}
+.training-record-filters .slx-search{max-width:none;min-width:190px;border-color:#cddce4;background:#fff}
+.training-record-filters select{flex:1;min-width:150px;height:38px;font-size:12px;border-color:#cddce4;background:#fff}
+.training-record-filters .slx-button{height:38px;border-color:#b9cbd5;background:#fff;color:#315064;font-weight:700}
+.training-record-filters .slx-button:hover{background:#e6f1f4;border-color:#8fadb9}
+@media(max-width:850px){.training-record-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.training-record-filters{flex-wrap:wrap}.training-record-filters .slx-search{flex-basis:100%}.training-record-filters select{min-width:calc(50% - 5px)}}
+@media(max-width:500px){.training-record-metrics>div{padding:13px}.training-record-metrics strong{font-size:17px}.training-record-filters select{min-width:100%}}
+
+body,button,input,select,textarea{font-family:"Segoe UI",Tahoma,Arial,sans-serif}

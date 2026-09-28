@@ -1,0 +1,10 @@
+.participant-error {
+  margin: 12px 0 0;
+  color: #b42318;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.training-editor input:invalid {
+  border-color: #d92d20;
+}

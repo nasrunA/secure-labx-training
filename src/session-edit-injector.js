@@ -1,0 +1,10 @@
+const openEditor = heading => {
+  const title = heading.querySelector('b'), details = heading.querySelector('small'), location = details?.textContent?.split('·').pop()?.trim() ?? ''
+  const modal = document.createElement('div'); modal.className = 'session-editor-overlay'
+  modal.innerHTML = `<section class="session-editor-modal"><button class="session-editor-close">×</button><h2>Edit session</h2><p>Update the session information below.</p><label>Session title<input name="title" value="${title?.textContent ?? ''}"></label><div class="session-date-fields"><label>Start date<input name="start" type="date"></label><label>End date<input name="end" type="date"></label></div><label>Location<input name="location" value="${location}"></label><footer><button class="session-editor-cancel">Cancel</button><button class="session-editor-save">Save changes</button></footer></section>`
+  const close = () => modal.remove(); modal.querySelector('.session-editor-close').onclick = close; modal.querySelector('.session-editor-cancel').onclick = close
+  modal.querySelector('.session-editor-save').onclick = () => { const newTitle = modal.querySelector('[name=title]').value.trim(), start = modal.querySelector('[name=start]').value, end = modal.querySelector('[name=end]').value, newLocation = modal.querySelector('[name=location]').value.trim(); if (newTitle) title.textContent = newTitle; if (start || end || newLocation) details.textContent = `${start || 'Start date'} – ${end || 'End date'} · ${newLocation || location}`; close() }
+  document.body.appendChild(modal)
+}
+const addButtons = () => document.querySelectorAll('.session-heading').forEach(heading => { if (heading.querySelector('.session-edit')) return; const button = document.createElement('button'); button.className = 'session-edit'; button.type = 'button'; button.textContent = 'Edit session'; button.onclick = event => { event.stopPropagation(); openEditor(heading) }; heading.insertBefore(button, heading.querySelector('.add-company')) })
+new MutationObserver(addButtons).observe(document.body, {childList:true, subtree:true}); addButtons()

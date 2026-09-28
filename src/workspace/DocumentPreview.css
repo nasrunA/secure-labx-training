@@ -1,0 +1,1 @@
+.document-preview{display:grid;gap:14px;min-height:60vh}.document-preview iframe,.document-preview img{width:100%;height:60vh;border:1px solid #d6e3e7;border-radius:4px;background:#f8fafb}.document-preview img{height:auto;max-height:70vh;object-fit:contain}.document-preview a{justify-self:end;color:#246a63;font-size:13px;font-weight:700;text-decoration:none}
