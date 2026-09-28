@@ -1,7 +1,12 @@
 import {build} from 'vite'
-import {cp,mkdir} from 'node:fs/promises'
+import {cp, mkdir, rm} from 'node:fs/promises'
 
-await build()
+await rm('dist', { recursive: true, force: true })
+await build({
+  build: {
+    outDir: 'dist/client',
+  },
+})
 await mkdir('dist/server',{recursive:true})
 await mkdir('dist/.openai',{recursive:true})
 await cp('worker/index.js','dist/server/index.js')
