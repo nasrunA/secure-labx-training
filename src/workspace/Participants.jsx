@@ -16,7 +16,7 @@ export default function Participants({company, data, back, notify}) {
     setLoading(true); setError('')
     try {
       const companies = company ? [company] : data.companies
-      const groups = await Promise.all(companies.map(async c => (await api(`/training-companies/${c.id}/participants`)).map(p => ({...p, companyId:c.id, companyName:c.companyName, sessionName:c.sessionName, sessionNumber:sessionNumbers.get(c.sessionId) || '—'}))))
+      const groups = await Promise.all(companies.map(async c => (await api(`/training-companies/${c.id}/participants`)).map(p => ({...p, companyId:c.id, companyName:c.companyName, sessionName:c.sessionName, sessionNumber:sessionNumbers.get(c.sessionId) || 'Not assigned'}))))
       setRows(groups.flat())
     } catch (caught) {setError(caught.message)} finally {setLoading(false)}
   }, [company, data.companies, sessionNumbers])
@@ -32,7 +32,9 @@ export default function Participants({company, data, back, notify}) {
         <label className="slx-search"><Icon name="search"/><input aria-label="Search participants" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search name, IC number, company or session…"/></label>
         {!company && <select aria-label="Filter training session" value={session} onChange={e => setSession(e.target.value)}><option value="">All sessions</option>{sessions.map(number => <option key={number} value={number}>Session {number}</option>)}</select>}
         <select aria-label="Filter application status" value={status} onChange={e => setStatus(e.target.value)}><option value="">All statuses</option><option value="registered">Registered</option><option value="pending_application">Pending application</option></select>
+        <Button onClick={() => {setSearch(''); setStatus(''); setSession('')}}>Reset filters</Button>
         <Button icon="refresh" onClick={load}>Refresh</Button>
+        <span className="toolbar-count">{shown.length} of {rows.length} participants</span>
       </div>
       <ErrorMessage message={error} retry={load}/>
       {loading ? <div className="slx-loading">Loading participants…</div> : shown.length ? <div className="slx-table-wrap"><table className="slx-table"><thead><tr><th>#</th><th>Participant name</th><th>IC number</th>{!company && <><th>Company</th><th>Session no.</th></>}<th>Application status</th><th>Action</th></tr></thead><tbody>{shown.map((r,i) => <tr key={r.id}><td className="muted">{i+1}</td><td><strong>{r.fullName}</strong></td><td className="tabular">{r.icNumber}</td>{!company && <><td>{r.companyName}</td><td className="tabular">{r.sessionNumber}</td></>}<td><Badge value={r.applicationStatus}/></td><td><Action label={`Edit participant ${r.fullName}`} onClick={() => setDraft(r)}/></td></tr>)}</tbody></table></div> : !error && <Empty title="No participants found">{company ? 'Add a participant to this company to get started.' : 'Add participants by opening a company in Training activity.'}</Empty>}

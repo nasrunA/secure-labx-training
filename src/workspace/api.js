@@ -4,7 +4,7 @@ export const money = value => `RM ${Number(value || 0).toLocaleString('en-MY', {
 export const dateLabel = value => {
   if (!value) return 'Not set'
   const date = new Date(`${String(value).slice(0, 10)}T12:00:00`)
-  return Number.isNaN(date.getTime()) ? 'Not set' : date.toLocaleDateString('en-MY', {day: 'numeric', month: 'short', year: 'numeric'})
+  return Number.isNaN(date.getTime()) ? 'Not set' : date.toLocaleDateString('en-MY', {day: 'numeric', month: 'long', year: 'numeric'})
 }
 export const formatIC = value => value.replace(/\D/g, '').slice(0, 12).replace(/^(\d{6})(\d{1,2})?(\d{1,4})?$/, (_, a, b, c) => a + (b ? `-${b}` : '') + (c ? `-${c}` : ''))
 export async function api(path, options = {}) {

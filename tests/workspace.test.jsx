@@ -87,6 +87,17 @@ test('edit session prefills date and sends same calendar day', async () => {
   await waitFor(()=>expect(saved).toHaveBeenCalled())
   expect(JSON.parse(fetch.mock.calls.find(([,o])=>o.method==='PATCH')[1].body).startDate).toBe('2026-09-07')
 })
+test('session removal requires confirmation and sends DELETE', async () => {
+  const user=userEvent.setup(), saved=vi.fn()
+  render(<Editor kind="session" record={sessions[0]} close={vi.fn()} saved={saved}/>)
+  await user.click(screen.getByRole('button',{name:'Delete session'}))
+  expect(screen.getByText(/All companies, participants, rebate information/)).toBeTruthy()
+  expect(fetch).not.toHaveBeenCalled()
+  await user.click(screen.getByRole('button',{name:'Confirm removal'}))
+  await waitFor(()=>expect(saved).toHaveBeenCalledWith('Session removed successfully.'))
+  expect(fetch.mock.calls[0][0]).toContain('/training-sessions/s1')
+  expect(fetch.mock.calls[0][1].method).toBe('DELETE')
+})
 test('company removal requires confirmation, supports cancel, then sends DELETE', async () => {
   const user=userEvent.setup(), saved=vi.fn()
   render(<Editor kind="company" record={companies[0]} close={vi.fn()} saved={saved}/>)

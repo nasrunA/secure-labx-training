@@ -36,9 +36,10 @@
 .training-record-metrics>div:nth-child(2)::before{background:#148a7e}.training-record-metrics>div:nth-child(2)::after{background:#148a7e14}.training-record-metrics>div:nth-child(3)::before{background:#c8831f}.training-record-metrics>div:nth-child(3)::after{background:#c8831f14}.training-record-metrics>div:nth-child(4)::before{background:#6557a6}.training-record-metrics>div:nth-child(4)::after{background:#6557a614}
 .training-record-metrics span{display:block;position:relative;color:#64798a;font-size:10px;font-weight:700;letter-spacing:.35px;text-transform:uppercase;margin-bottom:9px}
 .training-record-metrics strong{display:block;position:relative;color:#233e50;font-size:22px;white-space:nowrap;font-variant-numeric:tabular-nums}
-.training-record-filters{display:flex;align-items:center;gap:10px;background:linear-gradient(135deg,#f9fcfd,#eef6f7);border:1px solid #d6e4e7;border-radius:8px;padding:12px;margin-bottom:18px;box-shadow:0 2px 8px rgba(30,60,80,.035)}
+.training-record-filters{display:flex;align-items:flex-end;gap:10px;flex-wrap:wrap;background:linear-gradient(135deg,#f9fcfd,#eef6f7);border:1px solid #d6e4e7;border-radius:8px;padding:12px;margin-bottom:18px;box-shadow:0 2px 8px rgba(30,60,80,.035)}
 .training-record-filters .slx-search{max-width:none;min-width:190px;border-color:#cddce4;background:#fff}
 .training-record-filters select{flex:1;min-width:150px;height:38px;font-size:12px;border-color:#cddce4;background:#fff}
+.training-record-filters .date-filter{display:grid;gap:5px;color:#607582;font-size:10px;font-weight:700}.training-record-filters .date-filter input{height:38px;min-width:145px;border:1px solid #cddce4;border-radius:4px;padding:0 9px;background:#fff;color:#384855;font:inherit;font-size:12px}
 .training-record-filters .slx-button{height:38px;border-color:#b9cbd5;background:#fff;color:#315064;font-weight:700}
 .training-record-filters .slx-button:hover{background:#e6f1f4;border-color:#8fadb9}
 @media(max-width:850px){.training-record-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.training-record-filters{flex-wrap:wrap}.training-record-filters .slx-search{flex-basis:100%}.training-record-filters select{min-width:calc(50% - 5px)}}

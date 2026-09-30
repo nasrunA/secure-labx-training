@@ -43,3 +43,33 @@ test('hosted dashboard reporting is calculated from live training records', asyn
   expect(report.usage).toEqual([{name:'Yearly Subscription', amount:100, count:1}])
   expect(report.years).toEqual([2026])
 })
+
+test('deleting a session removes its uploaded files before cascading database records', async () => {
+  const calls = []
+  const DB = {
+    prepare(sql) {
+      const statement = {
+        args: [],
+        bind(...args) { this.args = args; return this },
+        async first() {
+          calls.push({sql, args:this.args})
+          if (sql.startsWith('SELECT id FROM training_programs')) return {id:'s1'}
+          throw new Error(`Unexpected first query: ${sql}`)
+        },
+        async all() {
+          calls.push({sql, args:this.args})
+          if (sql.startsWith('SELECT rebate_profile')) return {results:[{rebateProfile:JSON.stringify({referenceFiles:[{key:'companies/c1/invoice'}],relatedFiles:[{key:'companies/c1/proof'}]})}]}
+          throw new Error(`Unexpected all query: ${sql}`)
+        },
+        async run() { calls.push({sql, args:this.args}); return {success:true} },
+      }
+      return statement
+    },
+  }
+  const deletedFiles = []
+  const response = await worker.fetch({url:'https://example.test/api/training-sessions/s1',method:'DELETE'}, {DB,BUCKET:{delete:async key=>deletedFiles.push(key)}})
+  expect(response.status).toBe(200)
+  expect(await response.json()).toEqual({deleted:true})
+  expect(deletedFiles).toEqual(['companies/c1/invoice','companies/c1/proof'])
+  expect(calls.at(-1)).toMatchObject({sql:'DELETE FROM training_programs WHERE id=?',args:['s1']})
+})

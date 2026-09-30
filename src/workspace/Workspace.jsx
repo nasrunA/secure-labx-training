@@ -1,4 +1,4 @@
-import React, {useCallback, useEffect, useState} from 'react'
+import React, {useCallback, useEffect, useRef, useState} from 'react'
 import logo from '../../logoSlx.png'
 import {loadTraining, downloadCSV, labels} from './api'
 import {Icon, Button, ErrorMessage, Modal, Panel, PageTitle, Field} from './UI'
@@ -22,9 +22,14 @@ export default function Workspace() {
   const [editor, setEditor] = useState(null)
   const [notice, setNotice] = useState('')
   const [help, setHelp] = useState(false)
+  const [unsaved, setUnsaved] = useState(false)
+  const pageRef = useRef(page)
+  const unsavedRef = useRef(false)
   const [density, setDensity] = useState(() => localStorage.getItem('slx-density') || 'comfortable')
-  const navigate = next => {window.location.hash = next; setPage(next); setSidebar(false)}
-  useEffect(() => {const listener = () => {setPage(route()); setSidebar(false)}; window.addEventListener('hashchange',listener); return () => window.removeEventListener('hashchange',listener)}, [])
+  const updateUnsaved = useCallback(value => {unsavedRef.current = value; setUnsaved(value)}, [])
+  const navigate = next => {if(unsavedRef.current){setNotice('Save or cancel your changes before leaving this page.');return}pageRef.current=next;window.location.hash=next;setPage(next);setSidebar(false)}
+  useEffect(() => {const listener = () => {if(unsavedRef.current){window.history.replaceState(null,'',`#${pageRef.current}`);setNotice('Save or cancel your changes before leaving this page.');return}const next=route();pageRef.current=next;setPage(next);setSidebar(false)}; window.addEventListener('hashchange',listener); return () => window.removeEventListener('hashchange',listener)}, [])
+  useEffect(() => {if(!unsaved)return;const listener=event=>{event.preventDefault();event.returnValue=''};window.addEventListener('beforeunload',listener);return()=>window.removeEventListener('beforeunload',listener)}, [unsaved])
   useEffect(() => {if (!notice) return; const timer = setTimeout(() => setNotice(''),4500); return () => clearTimeout(timer)}, [notice])
   useEffect(() => {const listener = e => {if(e.key === 'Escape')setSidebar(false)}; window.addEventListener('keydown',listener); return () => window.removeEventListener('keydown',listener)}, [])
   const load = useCallback(async () => {setLoading(true); setError(''); try {setData(await loadTraining())} catch(e) {setError(e.message)} finally {setLoading(false)}}, [])
@@ -45,14 +50,14 @@ export default function Workspace() {
       </>}
       {current === 'participants' && <Participants data={data} notify={setNotice}/>}
       {current === 'training-records' && <TrainingRecords training={data} refresh={load}/>}
-      {current === 'rebate-management' && <RebateManagement data={data} refresh={load} notify={setNotice}/>}
+      {current === 'rebate-management' && <RebateManagement data={data} refresh={load} notify={setNotice} onDirtyChange={updateUnsaved}/>}
       {current === 'summary' && <Summary data={data}/>} 
       {['dashboard','credit','reports'].includes(current) && <Reporting key={current} view={current} training={data} navigate={navigate}/>}
       {current === 'settings' && <><PageTitle kicker="PREFERENCES" title="Settings">Choose how records are displayed on this device.</PageTitle><Panel title="Display preferences"><div className="settings-body"><Field label="Table spacing"><select value={density} onChange={e => {setDensity(e.target.value); localStorage.setItem('slx-density',e.target.value); setNotice('Display preference saved.')}}><option value="comfortable">Comfortable</option><option value="compact">Compact</option></select></Field><p>Applies to training, participant and report tables.</p><Button onClick={() => {setDensity('comfortable');localStorage.removeItem('slx-density');setNotice('Display settings reset.')}}>Reset preferences</Button></div></Panel></>}
       <footer className="slx-footer"><span>© 2026 Secure LabX. All Rights Reserved.</span><span>Website developed by Nasrun Amin.</span></footer>
     </main></div>
     {notice && <div className="slx-toast" role="status">{notice}<button aria-label="Dismiss notification" onClick={() => setNotice('')}>×</button></div>}
-    {editor && <Editor key={`${editor.kind}-${editor.record.id || 'new'}`} {...editor} close={() => setEditor(null)} saved={async message => {await load();setNotice(message)}}/>}
+    {editor && <Editor key={`${editor.kind}-${editor.record.id || 'new'}`} {...editor} close={() => setEditor(null)} saved={async message => {await load();setNotice(message)}} onDirtyChange={updateUnsaved}/>}
     {help && <Modal title="Help & shortcuts" close={() => setHelp(false)}><div className="help-content"><h3>Manage your training records</h3><p>Open Training activity to schedule sessions. Expand a session to see its companies, then select a company name to register participants.</p><p>The square arrow action button opens a record for editing. Removal is available inside the edit form and requires confirmation.</p><p>Use Filter sessions to sort by date, sequence number or company count. Reports supports CSV export and Print / Save PDF.</p><Button variant="primary" onClick={() => {setHelp(false);navigate('training')}}>Open training activity</Button></div></Modal>}
   </div>
 }

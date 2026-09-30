@@ -1,4 +1,8 @@
 import {RestApplication} from '@loopback/rest';
+import {
+  RestExplorerBindings,
+  RestExplorerComponent,
+} from '@loopback/rest-explorer';
 import {TrainingController} from './controllers/training.controller.js';
 import {TrainingService} from './services/training.service.js';
 
@@ -16,6 +20,10 @@ export class SecureLabxApiApplication extends RestApplication {
         allowedHeaders: 'Content-Type, Authorization',
       },
     }});
+    this.configure(RestExplorerBindings.COMPONENT).to({
+      path: '/explorer',
+    });
+    this.component(RestExplorerComponent);
     this.bind('services.TrainingService').toClass(TrainingService);
     this.controller(TrainingController);
   }

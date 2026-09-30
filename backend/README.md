@@ -8,6 +8,10 @@ This Node.js + LoopBack REST API connects to the local PostgreSQL database creat
 
 The API runs at `http://localhost:3001`.
 
+Open `http://localhost:3001/explorer` to view and test the local API in the
+LoopBack REST Explorer. The explorer is local-only and does not change the
+website routes or the hosted backend.
+
 | Endpoint | Purpose |
 | --- | --- |
 | `GET /api/training-sessions` | List sessions; supports `?search=` |

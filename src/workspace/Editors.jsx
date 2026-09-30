@@ -1,12 +1,15 @@
-import React, {useState} from 'react'
-import {Modal, Field, Button, ErrorMessage} from './UI'
+import React, {useEffect, useState} from 'react'
+import {Modal, Field, Button, ErrorMessage, DateInput} from './UI'
 import {api, RATE, money, formatIC, labels} from './api'
 
-export default function Editor({kind, record, close, saved}) {
+export default function Editor({kind, record, close, saved, onDirtyChange}) {
   const [draft, setDraft] = useState(record)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [confirmDelete, setConfirmDelete] = useState(false)
+  const dirty = JSON.stringify(draft) !== JSON.stringify(record)
+  useEffect(() => {onDirtyChange?.(dirty)}, [dirty, onDirtyChange])
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
   const set = (key, value) => setDraft(old => ({...old, [key]: value}))
   const title = kind === 'session' ? (record.id ? 'Edit session' : 'Schedule new session') : `${record.id ? 'Edit' : 'Add'} ${kind}`
   const submit = async event => {
@@ -38,16 +41,17 @@ export default function Editor({kind, record, close, saved}) {
   const remove = async () => {
     setBusy(true); setError('')
     try {
-      await api(`/${kind === 'company' ? 'training-companies' : 'company-participants'}/${record.id}`, {method: 'DELETE'})
-      await saved(`${kind === 'company' ? 'Company' : 'Participant'} removed successfully.`); close()
+      const resource = kind === 'session' ? 'training-sessions' : kind === 'company' ? 'training-companies' : 'company-participants'
+      await api(`/${resource}/${record.id}`, {method: 'DELETE'})
+      await saved(`${kind === 'session' ? 'Session' : kind === 'company' ? 'Company' : 'Participant'} removed successfully.`); close()
     } catch (caught) {setError(caught.message)} finally {setBusy(false)}
   }
-  return <Modal title={title} close={close} busy={busy}><form onSubmit={submit}>
+  return <Modal title={title} close={close} busy={busy || dirty}><form onSubmit={submit}>
     <fieldset disabled={busy} className="slx-form-grid">
       {kind === 'session' && <>
         <div className="full"><Field label="Session title"><input autoFocus required maxLength={180} value={draft.name} onChange={e => set('name', e.target.value)}/></Field></div>
-        <Field label="Start date"><input required type="date" value={draft.startDate || ''} onChange={e => set('startDate', e.target.value)}/></Field>
-        <Field label="End date"><input required type="date" min={draft.startDate} value={draft.endDate || ''} onChange={e => set('endDate', e.target.value)}/></Field>
+        <Field label="Start date"><DateInput required value={draft.startDate || ''} onChange={e => set('startDate', e.target.value)}/></Field>
+        <Field label="End date"><DateInput required min={draft.startDate} value={draft.endDate || ''} onChange={e => set('endDate', e.target.value)}/></Field>
         <div className="full"><Field label="Location"><input maxLength={120} value={draft.location || ''} onChange={e => set('location', e.target.value)} placeholder="City or venue"/></Field></div>
       </>}
       {kind === 'company' && <>
@@ -64,10 +68,10 @@ export default function Editor({kind, record, close, saved}) {
       </>}
     </fieldset>
     <ErrorMessage message={error}/>
-    {confirmDelete && <div className="delete-confirm" role="alert"><strong>Remove this {kind}?</strong><p>{kind === 'company' ? 'Its participant records will also be removed. This cannot be undone.' : 'This participant record will be permanently removed.'}</p><Button variant="danger" disabled={busy} onClick={remove}>Confirm removal</Button><Button disabled={busy} onClick={() => setConfirmDelete(false)}>Keep {kind}</Button></div>}
+    {confirmDelete && <div className="delete-confirm" role="alert"><strong>Remove this {kind}?</strong><p>{kind === 'session' ? 'All companies, participants, rebate information, and uploaded files stored under this session will also be removed. This cannot be undone.' : kind === 'company' ? 'Its participant records will also be removed. This cannot be undone.' : 'This participant record will be permanently removed.'}</p><Button variant="danger" disabled={busy} onClick={remove}>Confirm removal</Button><Button disabled={busy} onClick={() => setConfirmDelete(false)}>Keep {kind}</Button></div>}
     <footer className="form-actions">
-      {record.id && kind !== 'session' && <Button variant="danger-quiet" disabled={busy} onClick={() => setConfirmDelete(true)}>{kind === 'company' ? 'Delete company' : 'Remove participant'}</Button>}
-      <span className="spacer"/><Button disabled={busy} onClick={close}>Cancel</Button><Button type="submit" variant="primary" disabled={busy}>{busy ? 'Saving…' : record.id ? `Update ${kind}` : kind === 'session' ? 'Schedule session' : `Add ${kind}`}</Button>
+      {record.id && <Button variant="danger-quiet" disabled={busy} onClick={() => setConfirmDelete(true)}>{kind === 'session' ? 'Delete session' : kind === 'company' ? 'Delete company' : 'Remove participant'}</Button>}
+      {dirty && <span className="unsaved-note">Unsaved changes</span>}<span className="spacer"/><Button disabled={busy} onClick={close}>Cancel</Button><Button type="submit" variant="primary" disabled={busy}>{busy ? 'Saving…' : record.id ? `Update ${kind}` : kind === 'session' ? 'Schedule session' : `Add ${kind}`}</Button>
     </footer>
   </form></Modal>
 }
