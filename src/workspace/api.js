@@ -1,5 +1,5 @@
 export const RATE = 1799
-export const labels = {follow_up: 'Follow-up', applied: 'Applied', approved: 'Approved', rejected: 'Rejected', registered: 'Registered', pending_application: 'Pending application'}
+export const labels = {follow_up: 'Follow-up', applied: 'Applied', approved: 'Approved', rejected: 'Rejected', registered: 'Registered', pending: 'Pending', pending_application: 'Pending application'}
 export const money = value => `RM ${Number(value || 0).toLocaleString('en-MY', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`
 export const dateLabel = value => {
   if (!value) return 'Not set'
