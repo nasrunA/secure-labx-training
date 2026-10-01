@@ -1,6 +1,6 @@
 import React, {useEffect, useState} from 'react'
 import {Modal, Field, Button, ErrorMessage, DateInput} from './UI'
-import {api, RATE, money, formatIC, labels} from './api'
+import {api, RATE, money, formatPhone, labels} from './api'
 
 export default function Editor({kind, record, close, saved, onDirtyChange}) {
   const [draft, setDraft] = useState(record)
@@ -18,7 +18,7 @@ export default function Editor({kind, record, close, saved, onDirtyChange}) {
     if (!name?.trim()) return setError(`Please enter the ${kind === 'session' ? 'session title' : kind + ' name'}.`)
     if (kind === 'session' && draft.endDate < draft.startDate) return setError('End date must be on or after the start date.')
     if (kind === 'company' && (draft.participantCount === '' || !Number.isInteger(Number(draft.participantCount)) || Number(draft.participantCount) < 0)) return setError('Please enter a whole number of participants, 0 or more.')
-    if (kind === 'participant' && !/^\d{6}-\d{2}-\d{4}$/.test(draft.icNumber)) return setError('Enter all 12 digits of the IC number.')
+    if (kind === 'participant' && !/^\d{10,11}$/.test(draft.icNumber)) return setError('Enter a valid 10 or 11 digit phone number.')
     setBusy(true)
     try {
       let path, body
@@ -63,7 +63,7 @@ export default function Editor({kind, record, close, saved, onDirtyChange}) {
       </>}
       {kind === 'participant' && <>
         <div className="full"><Field label="Participant name"><input autoFocus required maxLength={160} value={draft.fullName} onChange={e => set('fullName', e.target.value)}/></Field></div>
-        <Field label="IC number"><input required inputMode="numeric" pattern="[0-9]{6}-[0-9]{2}-[0-9]{4}" title="Enter 12 digits, for example 900101-14-1234" placeholder="900101-14-1234" value={draft.icNumber} onChange={e => set('icNumber', formatIC(e.target.value))}/></Field>
+        <Field label="Phone number"><input required type="tel" inputMode="numeric" pattern="[0-9]{10,11}" title="Enter a 10 or 11 digit phone number, for example 0169272236" placeholder="0169272236" value={draft.icNumber} onChange={e => set('icNumber', formatPhone(e.target.value))}/></Field>
         <Field label="Application status"><select value={draft.applicationStatus} onChange={e => set('applicationStatus', e.target.value)}><option value="pending_application">Pending application</option><option value="registered">Registered</option></select></Field>
       </>}
     </fieldset>

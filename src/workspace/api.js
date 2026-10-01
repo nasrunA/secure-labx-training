@@ -6,7 +6,7 @@ export const dateLabel = value => {
   const date = new Date(`${String(value).slice(0, 10)}T12:00:00`)
   return Number.isNaN(date.getTime()) ? 'Not set' : date.toLocaleDateString('en-MY', {day: 'numeric', month: 'long', year: 'numeric'})
 }
-export const formatIC = value => value.replace(/\D/g, '').slice(0, 12).replace(/^(\d{6})(\d{1,2})?(\d{1,4})?$/, (_, a, b, c) => a + (b ? `-${b}` : '') + (c ? `-${c}` : ''))
+export const formatPhone = value => value.replace(/\D/g, '').slice(0, 11)
 export async function api(path, options = {}) {
   let response
   try {
