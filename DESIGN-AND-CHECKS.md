@@ -19,7 +19,7 @@ The active entry point is `src/main.jsx` and the new interface is in `src/worksp
 ## Repaired controls
 
 - Dashboard report button opens a branded monthly report with all recorded columns, CSV download, and print/save PDF.
-- Topbar export provides the training register, or opens reporting as appropriate.
+- The profile dropdown replaces the topbar export/sign-out controls; report and register exports remain available from their relevant pages.
 - Credit management reads recorded credit usage from PostgreSQL.
 - Participants navigation opens a searchable register across companies.
 - Reports, help, and display settings have working destinations.
@@ -30,9 +30,17 @@ The active entry point is `src/main.jsx` and the new interface is in `src/worksp
 
 The new reporting endpoint reads existing annual summary, monthly performance, and credit usage tables. No business records or calculation rules were migrated or overwritten. Annual reporting values are distinct from live registration counts and are labelled accordingly. Adding a participant does not silently change the manually allocated company participant count.
 
+## Login and account administration
+
+The public sign-in screen has Applicant, Trainer and Sales Team role tabs. Superadmin sign-in is only linked from the Trainer tab and opens a separate workspace with two account sections: Trainer & Sales Team, and Applicants. Superadmins can create, edit, reset passwords and delete accounts in the matching section. Signed-in users can update their own email and password from the profile dropdown after confirming their current password; roles and account deletion remain Superadmin-managed. Passwords are stored as PBKDF2 hashes and sessions use an HttpOnly cookie.
+
+Apply the D1 migrations with `npm run cf:db:init`, then create the first superadmin interactively with `npm run auth:bootstrap -- --email admin@example.com --remote`. Omit `--remote` to initialize the local Wrangler database. The bootstrap command asks for the password without echoing it and does not accept a default password.
+
+For local development, run `npm run local` to start the frontend and PostgreSQL-backed LoopBack API together. Alternatively, run `npm --prefix backend run dev` and `npm start` in separate terminals. Vite proxies `/api` to `http://127.0.0.1:3001`. Create the local Superadmin with `npm --prefix backend run auth:bootstrap -- --email admin@example.com`. The deployed website still uses the Cloudflare Worker and D1; local proxy settings do not affect production.
+
 ## Verification
 
-Run `npm test` for interface regression checks using React Testing Library and a simulated DOM/API. These exercise navigation, search/sort, editors, cancellation, validation, exports, print invocation, failure recovery and mobile navigation behaviour. They do not substitute for visual browser layout inspection or printed-page inspection.
+Run `npm test` for interface and Worker checks using React Testing Library and a simulated DOM/API. These exercise navigation, login role selection, API authorization, password hashing/session issuance, search/sort, editors, cancellation, validation, exports, print invocation, failure recovery and mobile navigation behaviour. They do not substitute for visual browser layout inspection or printed-page inspection.
 
 Run `npm run build` and `npm --prefix backend run build` for production compilation.
 
