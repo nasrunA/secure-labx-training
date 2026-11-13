@@ -1,0 +1,1 @@
+ALTER TABLE company_participants ADD COLUMN phone_number VARCHAR(16);

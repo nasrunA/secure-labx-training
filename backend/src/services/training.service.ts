@@ -7,7 +7,7 @@ export type RebateStatus = 'fully_used' | 'unused';
 export interface CreateSession {referenceCode: string; name: string; startDate: string; endDate: string; location?: string}
 export interface CreateCompany {companyName: string; participantCount: number; grantStatus?: GrantStatus; rebateStatus?: RebateStatus; rebateProfile?: Record<string, unknown>}
 export type ApplicationStatus = 'registered' | 'pending_application';
-export interface CreateParticipant {fullName: string; icNumber: string; applicationStatus?: ApplicationStatus}
+export interface CreateParticipant {fullName: string; icNumber: string; phoneNumber?: string; applicationStatus?: ApplicationStatus}
 
 @injectable({scope: BindingScope.SINGLETON})
 export class TrainingService {
@@ -110,14 +110,15 @@ export class TrainingService {
   }
 
   async getParticipants(companyId: string) {
-    const {rows} = await this.pool.query(`SELECT id, full_name AS "fullName", ic_number AS "icNumber", application_status AS "applicationStatus" FROM company_participants WHERE training_company_id = $1 ORDER BY created_at`, [companyId]);
+    const {rows} = await this.pool.query(`SELECT id, full_name AS "fullName", ic_number AS "icNumber", phone_number AS "phoneNumber", application_status AS "applicationStatus" FROM company_participants WHERE training_company_id = $1 ORDER BY created_at`, [companyId]);
     return rows;
   }
 
   async createParticipant(companyId: string, input: CreateParticipant) {
+    if (!input.phoneNumber) throw new HttpErrors.UnprocessableEntity('Enter a valid 10 or 11 digit phone number.');
     input = this.validateParticipant(input);
     try {
-      const {rows} = await this.pool.query(`INSERT INTO company_participants(training_company_id, full_name, ic_number, application_status) VALUES($1,$2,$3,$4) RETURNING id, full_name AS "fullName", ic_number AS "icNumber", application_status AS "applicationStatus"`, [companyId, input.fullName, input.icNumber, input.applicationStatus ?? 'pending_application']);
+      const {rows} = await this.pool.query(`INSERT INTO company_participants(training_company_id, full_name, ic_number, phone_number, application_status) VALUES($1,$2,$3,$4,$5) RETURNING id, full_name AS "fullName", ic_number AS "icNumber", phone_number AS "phoneNumber", application_status AS "applicationStatus"`, [companyId, input.fullName, input.icNumber, input.phoneNumber, input.applicationStatus ?? 'pending_application']);
       return rows[0];
     } catch (error: any) {
       if (error.code === '23505') throw new HttpErrors.Conflict('This IC number has already been added for this company.')
@@ -128,7 +129,7 @@ export class TrainingService {
   async updateParticipant(id: string, input: Partial<CreateParticipant>) {
     input = this.validateParticipant(input);
     try {
-    const {rows} = await this.pool.query(`UPDATE company_participants SET full_name = COALESCE($2, full_name), ic_number = COALESCE($3, ic_number), application_status = COALESCE($4, application_status), updated_at = now() WHERE id = $1 RETURNING id, full_name AS "fullName", ic_number AS "icNumber", application_status AS "applicationStatus"`, [id, input.fullName ?? null, input.icNumber ?? null, input.applicationStatus ?? null]);
+    const {rows} = await this.pool.query(`UPDATE company_participants SET full_name = COALESCE($2, full_name), ic_number = COALESCE($3, ic_number), phone_number = COALESCE($4, phone_number), application_status = COALESCE($5, application_status), updated_at = now() WHERE id = $1 RETURNING id, full_name AS "fullName", ic_number AS "icNumber", phone_number AS "phoneNumber", application_status AS "applicationStatus"`, [id, input.fullName ?? null, input.icNumber ?? null, input.phoneNumber ?? null, input.applicationStatus ?? null]);
     if (!rows[0]) throw new HttpErrors.NotFound('Participant record was not found.');
     return rows[0];
     } catch (error: any) {
@@ -144,6 +145,9 @@ export class TrainingService {
       const digits = input.icNumber.replace(/-/g, '');
       if (!/^\d{12}$/.test(digits)) throw new HttpErrors.UnprocessableEntity('Enter all 12 digits of the IC number.');
       input.icNumber = `${digits.slice(0,6)}-${digits.slice(6,8)}-${digits.slice(8)}`;
+    }
+    if (input.phoneNumber !== undefined && (typeof input.phoneNumber !== 'string' || !/^\d{10,11}$/.test(input.phoneNumber))) {
+      throw new HttpErrors.UnprocessableEntity('Enter a valid 10 or 11 digit phone number.');
     }
     if (input.applicationStatus !== undefined && !['registered', 'pending_application'].includes(input.applicationStatus)) throw new HttpErrors.UnprocessableEntity('Choose Registered or Pending application.');
     return input;
