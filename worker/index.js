@@ -51,7 +51,116 @@ async function reporting(env,year){
   return assembleReporting(companies.results,participants?.participantRecords||0,availableYears.results.map(row=>row.year))
 }
 
+const accountRoles = new Set(['applicant','trainer','sales'])
+const sessionLifetime = 14 * 24 * 60 * 60
+const passwordIterations = 150000
+const hex = bytes => [...new Uint8Array(bytes)].map(byte=>byte.toString(16).padStart(2,'0')).join('')
+const bytesFromHex = value => Uint8Array.from(value.match(/.{2}/g)||[],byte=>parseInt(byte,16))
+async function passwordHash(password,salt){
+  const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(password),'PBKDF2',false,['deriveBits'])
+  const bits=await crypto.subtle.deriveBits({name:'PBKDF2',hash:'SHA-256',salt:bytesFromHex(salt),iterations:passwordIterations},key,256)
+  return hex(bits)
+}
+async function hashToken(token){return hex(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(token)))}
+function validEmail(value){return typeof value==='string'&&value.length<=254&&/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)}
+function validPassword(value){return typeof value==='string'&&value.length>=12&&value.length<=256}
+async function verifyPassword(password,salt,expected){
+  if(typeof password!=='string'||typeof salt!=='string'||typeof expected!=='string')return false
+  const actual=await passwordHash(password,salt)
+  if(actual.length!==expected.length)return false
+  let difference=0
+  for(let index=0;index<actual.length;index++)difference|=actual.charCodeAt(index)^expected.charCodeAt(index)
+  return difference===0
+}
+function cookieValue(request,name){
+  const cookie=request.headers?.get('Cookie')||''
+  const match=cookie.split(';').map(part=>part.trim()).find(part=>part.startsWith(`${name}=`))
+  return match?match.slice(name.length+1):''
+}
+function sessionCookie(token,request){
+  const secure=new URL(request.url).protocol==='https:'?'; Secure':''
+  return `slx_session=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${sessionLifetime}${secure}`
+}
+async function currentUser(request,env){
+  const token=cookieValue(request,'slx_session')
+  if(!token)return null
+  return env.DB.prepare(`SELECT u.id,u.email,u.role FROM user_sessions s JOIN users u ON u.id=s.user_id WHERE s.token_hash=? AND s.expires_at>?`).bind(await hashToken(token),now()).first()
+}
+function publicAccount(row){return{id:row.id,email:row.email,role:row.role,createdAt:row.created_at}}
+async function accountRoutes(request,env,path,user){
+  if(user.role!=='superadmin')return error('Superadmin access is required.',403)
+  if(path==='accounts'&&request.method==='GET'){
+    const {results}=await env.DB.prepare(`SELECT id,email,role,created_at FROM users WHERE role IN ('applicant','trainer','sales') ORDER BY role,email`).all()
+    return json(results.map(publicAccount))
+  }
+  if(path==='accounts'&&request.method==='POST'){
+    const input=await request.json(),email=String(input.email||'').trim().toLowerCase(),role=input.role,password=input.password
+    if(!validEmail(email)||!accountRoles.has(role)||!validPassword(password))return error('Provide a valid email, account role and a password of at least 12 characters.')
+    const id=newId(),created=now(),salt=hex(crypto.getRandomValues(new Uint8Array(16))),digest=await passwordHash(password,salt)
+    await env.DB.prepare('INSERT INTO users(id,email,role,password_salt,password_hash,created_at,updated_at) VALUES(?,?,?,?,?,?,?)').bind(id,email,role,salt,digest,created,created).run()
+    return json({id,email,role,createdAt:created},201)
+  }
+  const match=path.match(/^accounts\/([^/]+)$/)
+  if(match&&request.method==='PATCH'){
+    const current=await env.DB.prepare(`SELECT id,email,role,password_salt,password_hash,created_at FROM users WHERE id=? AND role IN ('applicant','trainer','sales')`).bind(match[1]).first()
+    if(!current)return error('Account was not found.',404)
+    const input=await request.json(),email=input.email===undefined?current.email:String(input.email).trim().toLowerCase(),role=input.role===undefined?current.role:input.role,password=input.password
+    if(!validEmail(email)||!accountRoles.has(role)||(password!==undefined&&password!==''&&!validPassword(password)))return error('Provide a valid email and account role. Passwords must contain at least 12 characters.')
+    let salt=current.password_salt,digest=current.password_hash
+    if(password){salt=hex(crypto.getRandomValues(new Uint8Array(16)));digest=await passwordHash(password,salt)}
+    const updated=now()
+    await env.DB.prepare('UPDATE users SET email=?,role=?,password_salt=?,password_hash=?,updated_at=? WHERE id=?').bind(email,role,salt,digest,updated,current.id).run()
+    if(password)await env.DB.prepare('DELETE FROM user_sessions WHERE user_id=?').bind(current.id).run()
+    return json({id:current.id,email,role,createdAt:current.created_at})
+  }
+  if(match&&request.method==='DELETE'){
+    const result=await env.DB.prepare(`DELETE FROM users WHERE id=? AND role IN ('applicant','trainer','sales')`).bind(match[1]).run()
+    if(!result.meta?.changes)return error('Account was not found.',404)
+    return json({deleted:true})
+  }
+  return error('Route not found.',404)
+}
+
 export default{async fetch(request,env){const url=new URL(request.url);if(!url.pathname.startsWith('/api/'))return env.ASSETS.fetch(request);const path=url.pathname.slice(5);try{
+  if(request.method==='POST'&&path==='auth/login'){
+    const input=await request.json(),email=String(input.email||'').trim().toLowerCase(),role=input.role
+    if(!validEmail(email)||!['applicant','trainer','sales','superadmin'].includes(role)||typeof input.password!=='string')return error('Invalid email or password for the selected role.',401)
+    const account=await env.DB.prepare('SELECT id,email,role,password_salt,password_hash FROM users WHERE email=? COLLATE NOCASE').bind(email).first()
+    const passwordValid=await verifyPassword(input.password,account?.password_salt||'00000000000000000000000000000000',account?.password_hash||'0000000000000000000000000000000000000000000000000000000000000000')
+    if(!account||account.role!==role||!passwordValid)return error('Invalid email or password for the selected role.',401)
+    const token=hex(crypto.getRandomValues(new Uint8Array(32))),created=now(),expires=new Date(Date.now()+sessionLifetime*1000).toISOString()
+    await env.DB.prepare('DELETE FROM user_sessions WHERE expires_at<=?').bind(created).run()
+    await env.DB.prepare('INSERT INTO user_sessions(id,token_hash,user_id,expires_at,created_at) VALUES(?,?,?,?,?)').bind(newId(),await hashToken(token),account.id,expires,created).run()
+    return new Response(JSON.stringify({user:{id:account.id,email:account.email,role:account.role}}),{status:200,headers:{...headers,'set-cookie':sessionCookie(token,request)}})
+  }
+  if(request.method==='GET'&&path==='auth/me'){
+    const user=await currentUser(request,env)
+    return user?json({user}):error('Sign in to continue.',401)
+  }
+  if(request.method==='POST'&&path==='auth/logout'){
+    const token=cookieValue(request,'slx_session')
+    if(token)await env.DB.prepare('DELETE FROM user_sessions WHERE token_hash=?').bind(await hashToken(token)).run()
+    const secure=url.protocol==='https:'?'; Secure':''
+    return new Response(JSON.stringify({loggedOut:true}),{status:200,headers:{...headers,'set-cookie':`slx_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${secure}`}})
+  }
+  const user=await currentUser(request,env)
+  if(!user)return error('Sign in to continue.',401)
+  if(request.method==='PATCH'&&path==='auth/profile'){
+    const input=await request.json(),email=typeof input.email==='string'?input.email.trim().toLowerCase():'',currentPassword=input.currentPassword,newPassword=input.newPassword
+    if(!validEmail(email)||typeof currentPassword!=='string'||(newPassword!==undefined&&newPassword!==''&&!validPassword(newPassword)))return error('Provide a valid email and current password. New passwords must contain at least 12 characters.')
+    const current=await env.DB.prepare('SELECT password_salt,password_hash FROM users WHERE id=?').bind(user.id).first()
+    if(!current)return error('Account was not found.',404)
+    if(!await verifyPassword(currentPassword,current.password_salt,current.password_hash))return error('The current password is incorrect.',401)
+    let salt=current.password_salt,digest=current.password_hash
+    if(typeof newPassword==='string'&&newPassword){salt=hex(crypto.getRandomValues(new Uint8Array(16)));digest=await passwordHash(newPassword,salt)}
+    await env.DB.prepare('UPDATE users SET email=?,password_salt=?,password_hash=?,updated_at=? WHERE id=?').bind(email,salt,digest,now(),user.id).run()
+    if(newPassword){
+      const token=cookieValue(request,'slx_session')
+      await env.DB.prepare('DELETE FROM user_sessions WHERE user_id=? AND token_hash<>?').bind(user.id,await hashToken(token)).run()
+    }
+    return json({user:{id:user.id,email,role:user.role}})
+  }
+  if(path==='accounts'||path.startsWith('accounts/'))return accountRoutes(request,env,path,user)
   if(request.method==='GET'&&path.startsWith('files/')){const key=decodeURIComponent(path.slice(6)),object=await env.BUCKET.get(key);if(!object)return new Response('Not found',{status:404});const responseHeaders=new Headers();object.writeHttpMetadata(responseHeaders);responseHeaders.set('etag',object.httpEtag);responseHeaders.set('content-disposition',`inline; filename="${(object.customMetadata?.filename||'document').replaceAll('"','')}"`);return new Response(object.body,{headers:responseHeaders})}
   if(request.method==='GET'&&path==='training-sessions'){const search=`%${url.searchParams.get('search')||''}%`;const {results}=await env.DB.prepare(`SELECT p.id,p.reference_code referenceCode,p.name,p.start_date startDate,p.end_date endDate,p.location,COUNT(c.id) companyCount,COALESCE(SUM(c.participant_count),0) participantCount,COALESCE(SUM(c.gross_hrdc_claim),0) totalAmount FROM training_programs p LEFT JOIN training_companies c ON c.training_program_id=p.id WHERE p.name LIKE ? OR COALESCE(p.location,'') LIKE ? GROUP BY p.id ORDER BY p.start_date`).bind(search,search).all();return json(results)}
   let match=path.match(/^training-sessions\/([^/]+)\/companies$/)
@@ -73,4 +182,4 @@ export default{async fetch(request,env){const url=new URL(request.url);if(!url.p
   if(match&&request.method==='DELETE'){await env.DB.prepare('DELETE FROM company_participants WHERE id=?').bind(match[1]).run();return json({deleted:true})}
   if(request.method==='GET'&&path==='reporting')return json(await reporting(env,Number(url.searchParams.get('year')||2026)))
   return error('Route not found.',404)
-}catch(caught){return error(caught?.message||'The request could not be completed.',500)}}}
+}catch(caught){if(/unique constraint failed: users\.email/i.test(caught?.message||''))return error('An account already uses that email address.',409);return error(caught?.message||'The request could not be completed.',500)}}}

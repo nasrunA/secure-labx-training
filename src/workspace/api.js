@@ -11,7 +11,7 @@ export const formatPhone = value => value.replace(/\D/g, '').slice(0, 11)
 export async function api(path, options = {}) {
   let response
   try {
-    const base = import.meta.env.VITE_API_BASE_URL || (window.location.hostname === 'localhost' ? 'http://localhost:3001/api' : '/api')
+    const base = import.meta.env.VITE_API_BASE_URL || '/api'
     response = await fetch(`${base}${path}`, { ...options, headers: {'Content-Type': 'application/json', ...options.headers}, signal: options.signal || AbortSignal.timeout(15000) })
   } catch { throw new Error('Cannot connect to the server. Check that the backend and database are running, then retry.') }
   const body = await response.json().catch(() => null)

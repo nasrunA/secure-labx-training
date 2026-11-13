@@ -78,6 +78,7 @@ CREATE TABLE company_participants (
   training_company_id UUID NOT NULL REFERENCES training_companies(id) ON DELETE CASCADE,
   full_name VARCHAR(160) NOT NULL,
   ic_number VARCHAR(30) NOT NULL,
+  phone_number VARCHAR(16),
   application_status application_status NOT NULL DEFAULT 'pending_application',
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -117,3 +118,26 @@ CREATE INDEX idx_training_programs_status ON training_programs(status);
 CREATE INDEX idx_training_companies_program ON training_companies(training_program_id);
 CREATE INDEX idx_company_participants_company ON company_participants(training_company_id);
 CREATE INDEX idx_credit_usage_records_period ON credit_usage_records(reporting_period_id);
+
+CREATE TABLE users (
+  id UUID PRIMARY KEY,
+  email VARCHAR(254) NOT NULL UNIQUE,
+  role VARCHAR(16) NOT NULL CHECK (role IN ('applicant', 'trainer', 'sales', 'superadmin')),
+  password_salt CHAR(32) NOT NULL,
+  password_hash CHAR(64) NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX idx_one_superadmin ON users(role) WHERE role = 'superadmin';
+
+CREATE TABLE user_sessions (
+  id UUID PRIMARY KEY,
+  token_hash CHAR(64) NOT NULL UNIQUE,
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TIMESTAMPTZ NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_user_sessions_user_id ON user_sessions(user_id);
+CREATE INDEX idx_user_sessions_expires_at ON user_sessions(expires_at);

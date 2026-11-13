@@ -1,0 +1,10 @@
+.account-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;padding:20px 22px;align-items:end}
+.account-form-actions{display:flex;gap:8px;grid-column:1/-1}
+.account-table th:last-child,.account-table td:last-child{width:190px}
+.account-row-actions{display:flex;gap:7px}
+.account-form{grid-template-columns:repeat(2,minmax(0,1fr))}
+.account-form-actions{grid-column:1/-1}
+.account-form .slx-field input,.account-form .slx-field select{height:40px}
+.slx-sidebar nav a[href="#manage-trainer-sales"] span,.slx-sidebar nav a[href="#manage-applicants"] span{font-size:11px;line-height:1.35}
+@media(max-width:850px){.account-form{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.account-form{grid-template-columns:1fr}.account-form-actions{grid-column:auto}.account-table th,.account-table td{padding:12px 10px}.account-row-actions{flex-direction:column;align-items:flex-start}}

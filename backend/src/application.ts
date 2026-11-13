@@ -4,13 +4,15 @@ import {
   RestExplorerComponent,
 } from '@loopback/rest-explorer';
 import {TrainingController} from './controllers/training.controller.js';
+import {AuthController} from './controllers/auth.controller.js';
+import {AuthService} from './services/auth.service.js';
 import {TrainingService} from './services/training.service.js';
 
 export class SecureLabxApiApplication extends RestApplication {
   constructor() {
     super({rest: {
       port: Number(process.env.PORT ?? 3001),
-      host: '0.0.0.0',
+      host: '127.0.0.1',
       bodyParser: {
         json: {limit: '10mb'},
       },
@@ -25,6 +27,8 @@ export class SecureLabxApiApplication extends RestApplication {
     });
     this.component(RestExplorerComponent);
     this.bind('services.TrainingService').toClass(TrainingService);
+    this.bind('services.AuthService').toClass(AuthService);
     this.controller(TrainingController);
+    this.controller(AuthController);
   }
 }

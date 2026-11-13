@@ -3,21 +3,29 @@ import {beforeEach, expect, test, vi} from 'vitest'
 import {render, screen, fireEvent, waitFor, within} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import Workspace from '../src/workspace/Workspace'
+import AuthGate from '../src/workspace/AuthGate'
 import Editor from '../src/workspace/Editors'
 import Training from '../src/workspace/Training'
 import Participants from '../src/workspace/Participants'
 import {formatIC, dateLabel, sortSessions} from '../src/workspace/api'
 
-let sessions, companies, participants
+let sessions, companies, participants, accountRecords
 const summary = {total_training_revenue:148525.44,total_rebate_credit:120314,hrdc_paid_to_slx:131255.04,net_training_contribution:28211.44,rebate_credit_used:76909,unutilised_rebate_credit:43405,rebate_utilisation_percent:63.9,number_of_trainings:7,number_of_companies:2,total_participants:86}
 beforeEach(() => {
+  localStorage.removeItem('slx-theme')
   sessions = [{id:'s1',position:1,name:'April session',startDate:'2026-04-07',endDate:'2026-04-08',location:'Kuala Lumpur'}, {id:'s2',position:2,name:'September session',startDate:'2026-09-07',endDate:'2026-09-08',location:'Penang'}]
   companies = [{id:'c1',sessionId:'s1',companyName:'Same Company',participantCount:2,unitPrice:1799,total:3598,grantStatus:'approved',sessionName:'April session'}, {id:'c2',sessionId:'s2',companyName:'Same Company',participantCount:0,unitPrice:1799,total:0,grantStatus:'follow_up',sessionName:'September session'}]
-  participants = [{id:'p1',fullName:'Sample Participant',icNumber:'900101-14-1234',applicationStatus:'registered'}]
+  participants = [{id:'p1',fullName:'Sample Participant',icNumber:'900101-14-1234',phoneNumber:'0123456789',applicationStatus:'registered'}]
+  accountRecords = [
+    {id:'a1',email:'trainer@example.com',role:'trainer',createdAt:'2026-01-01'},
+    {id:'a2',email:'sales@example.com',role:'sales',createdAt:'2026-01-02'},
+    {id:'a3',email:'applicant@example.com',role:'applicant',createdAt:'2026-01-03'},
+  ]
   vi.stubGlobal('fetch', vi.fn(async (url,opts={}) => {
     let result = []
     if (opts.method) {
       const body=opts.body ? JSON.parse(opts.body) : {}
+      if(url.endsWith('/auth/profile')) return {ok:true,json:async()=>({user:{id:'trainer',email:body.email,role:'trainer'}})}
       if (url.includes('company-participants') && opts.method === 'PATCH' && body.icNumber === '900101-14-9999') return {ok:false,json:async()=>({error:{message:'This IC number has already been added for this company.'}})}
       if (url.includes('participants')) {
         if(opts.method === 'DELETE') participants=[]
@@ -26,6 +34,7 @@ beforeEach(() => {
       }
       result={...body,id:'saved',deleted:true}
     } else if (url.includes('/reporting')) result={summary,years:[2026],usage:[{name:'Monthly subscription',amount:50,count:1}],monthly:[{month:4,training_revenue:25905.6,rebate_issued:20985,net_contribution:4920.6,credit_used:11192,remaining_credit:9793,number_of_trainings:1},{month:9,training_revenue:17270.4,rebate_issued:13990,net_contribution:3280.4,credit_used:0,remaining_credit:13990,number_of_trainings:1}]}
+    else if (url.endsWith('/accounts')) result=accountRecords
     else if (url.endsWith('/training-sessions')) result=sessions
     else if (url.includes('/participants')) result=url.includes('/c2/') ? [] : participants
     else if(url.includes('/companies')) result=companies.filter(c=>url.includes(c.sessionId))
@@ -43,6 +52,89 @@ test('sorting keeps sequence numbers and does not mutate source order', () => {
   expect(sessions[0].position).toBe(1)
   expect(sortSessions(sessions,'april','number-desc',companies)).toHaveLength(1)
   expect(sortSessions(sessions,'','oldest',companies,'Penang')[0].id).toBe('s2')
+})
+test('superadmin sign-in is only revealed from the Trainer login', async () => {
+  const user=userEvent.setup()
+  render(<AuthGate><Workspace/></AuthGate>)
+  await screen.findByRole('tab',{name:'Applicant'})
+  expect(screen.getByLabelText('Email address').value).toBe('')
+  expect(screen.getByLabelText('Password').value).toBe('')
+  expect(screen.getByLabelText('Email address').getAttribute('autocomplete')).toBe('off')
+  expect(screen.getByLabelText('Password').getAttribute('autocomplete')).toBe('new-password')
+  expect(document.querySelector('.auth-form').getAttribute('autocomplete')).toBe('off')
+  expect(screen.queryByRole('button',{name:'Administrator sign in'})).toBeNull()
+  await user.type(screen.getByLabelText('Email address'),'user@example.com')
+  await user.type(screen.getByLabelText('Password'),'TemporaryPassword123')
+  await user.click(screen.getByRole('tab',{name:'Trainer'}))
+  expect(screen.getByLabelText('Email address').value).toBe('')
+  expect(screen.getByLabelText('Password').value).toBe('')
+  await user.click(screen.getByRole('button',{name:'Administrator sign in'}))
+  expect(screen.getByRole('heading',{name:'Superadmin sign in'})).toBeTruthy()
+  await user.click(screen.getByRole('button',{name:/Return to Trainer sign in/}))
+  expect(screen.queryByRole('button',{name:'Administrator sign in'})).toBeTruthy()
+  await user.click(screen.getByRole('tab',{name:'Sales Team'}))
+  expect(screen.queryByRole('button',{name:'Administrator sign in'})).toBeNull()
+})
+test('superadmin workspace is limited to separate staff and applicant account sections', async () => {
+  const user=userEvent.setup()
+  render(<Workspace user={{id:'root',email:'admin@example.com',role:'superadmin'}} onLogout={vi.fn()}/>)
+  const staffLink=screen.getByRole('link',{name:'Trainer & Sales'})
+  const applicantLink=screen.getByRole('link',{name:'Applicants'})
+  await screen.findByRole('heading',{name:'Manage Trainer & Sales Team'})
+  expect(screen.queryByRole('link',{name:'Dashboard'})).toBeNull()
+  expect(screen.queryByRole('link',{name:'Training activity'})).toBeNull()
+  expect(screen.queryByRole('link',{name:'Reports'})).toBeNull()
+  expect(screen.queryByRole('button',{name:'Export report'})).toBeNull()
+  expect(screen.queryByRole('link',{name:'Account management'})).toBeNull()
+
+  await user.click(staffLink)
+  await screen.findByRole('heading',{name:'Manage Trainer & Sales Team'})
+  expect(screen.getByText('trainer@example.com')).toBeTruthy()
+  expect(screen.getByText('sales@example.com')).toBeTruthy()
+  expect(screen.queryByText('applicant@example.com')).toBeNull()
+  expect(screen.getByLabelText('Account type').options).toHaveLength(2)
+  await user.selectOptions(screen.getByLabelText('Account type'),'sales')
+  expect(screen.getByRole('button',{name:'Create Sales Team account'})).toBeTruthy()
+
+  await user.click(applicantLink)
+  await screen.findByRole('heading',{name:'Manage Applicants'})
+  expect(screen.getByText('applicant@example.com')).toBeTruthy()
+  expect(screen.queryByText('trainer@example.com')).toBeNull()
+  expect(screen.queryByLabelText('Account type')).toBeNull()
+  expect(screen.getByLabelText('Applicant Gmail / email address')).toBeTruthy()
+})
+test('trainer keeps the existing training dashboard and workspace navigation', async () => {
+  render(<Workspace user={{id:'trainer',email:'trainer@example.com',role:'trainer'}} onLogout={vi.fn()}/>)
+  await screen.findByText('RM 148,525.44')
+  expect(screen.getByRole('link',{name:'Dashboard'})).toBeTruthy()
+  expect(screen.getByRole('link',{name:/Training activity/})).toBeTruthy()
+  expect(screen.getByRole('link',{name:'Reports'})).toBeTruthy()
+  expect(screen.queryByRole('link',{name:'Trainer & Sales'})).toBeNull()
+  expect(screen.queryByRole('link',{name:'Applicants'})).toBeNull()
+})
+test('profile dropdown opens profile management, updates the email and offers sign out', async () => {
+  const user=userEvent.setup(), onUserUpdated=vi.fn(), onLogout=vi.fn()
+  render(<Workspace user={{id:'trainer',email:'trainer@example.com',role:'trainer'}} onLogout={onLogout} onUserUpdated={onUserUpdated}/>)
+  await user.click(screen.getByRole('button',{name:/trainer@example.com · Trainer/}))
+  expect(screen.queryByRole('button',{name:'Export report'})).toBeNull()
+  await user.click(screen.getByRole('menuitem',{name:'Manage profile'}))
+  expect(screen.getByRole('heading',{name:'Manage profile'})).toBeTruthy()
+  await user.type(screen.getByLabelText('Current password'),'CurrentPassword123')
+  await user.clear(screen.getByLabelText('Email address'))
+  await user.type(screen.getByLabelText('Email address'),'updated@example.com')
+  await user.type(screen.getByLabelText('New password (optional)'),'UpdatedPassword123')
+  await user.type(screen.getByLabelText('Confirm new password'),'UpdatedPassword123')
+  expect(screen.getByLabelText('New password (optional)').value).toBe('UpdatedPassword123')
+  expect(screen.getByLabelText('Confirm new password').value).toBe('UpdatedPassword123')
+  expect(screen.getByRole('button',{name:'Save profile'}).type).toBe('submit')
+  expect(screen.getByRole('button',{name:'Save profile'}).closest('form').checkValidity()).toBe(true)
+  await user.click(screen.getByRole('button',{name:'Save profile'}))
+  expect(fetch).toHaveBeenCalledWith('/api/auth/profile',expect.objectContaining({method:'PATCH'}))
+  await screen.findByRole('button',{name:/updated@example.com · Trainer/})
+  expect(onUserUpdated).toHaveBeenCalledWith({id:'trainer',email:'updated@example.com',role:'trainer'})
+  await user.click(screen.getByRole('button',{name:/updated@example.com · Trainer/}))
+  await user.click(screen.getByRole('menuitem',{name:'Sign out'}))
+  expect(onLogout).toHaveBeenCalledOnce()
 })
 test('session filter, search, expand, company link, edit, schedule and refresh buttons', async () => {
   const user=userEvent.setup(), edit=vi.fn(), openCompany=vi.fn(), refresh=vi.fn()
@@ -132,6 +224,7 @@ test('participant add, status filter, search and removal operate through the API
   const dialog=screen.getByRole('dialog')
   await user.type(within(dialog).getByLabelText('Participant name'),'New Participant')
   await user.type(within(dialog).getByLabelText('IC number'),'900101141111')
+  await user.type(within(dialog).getByLabelText('Phone number'),'0123456789')
   await user.click(within(dialog).getByRole('button',{name:'Add participant'}))
   await screen.findByText('New Participant')
   await user.selectOptions(screen.getByLabelText('Filter application status'),'pending_application')
@@ -145,15 +238,21 @@ test('participant add, status filter, search and removal operate through the API
 })
 test('all sidebar destinations, help, sidebar toggle and preferences respond', async () => {
   const user=userEvent.setup();render(<Workspace/>)
+  expect(document.documentElement.dataset.theme).toBe('dark')
   await screen.findByText('RM 148,525.44')
   expect(screen.getByText(/Live totals from the training, company, participant and rebate records/)).toBeTruthy()
   expect(screen.getByText('Company records')).toBeTruthy()
   await user.click(screen.getByRole('button',{name:'Toggle navigation'}));expect(document.querySelector('.nav-collapsed')).toBeTruthy()
   await user.click(screen.getByRole('link',{name:'Credit management'}));await screen.findByText('Allocation by usage type')
   await user.click(screen.getByRole('link',{name:'Participants'}));await screen.findByText('Participant register')
-  await user.click(screen.getByRole('link',{name:'Settings'}));await user.selectOptions(screen.getByLabelText('Table spacing'),'compact')
+  await user.click(screen.getByRole('link',{name:'Settings'}))
+  await user.selectOptions(screen.getByLabelText('Appearance'),'light')
+  expect(document.documentElement.dataset.theme).toBe('light')
+  expect(localStorage.getItem('slx-theme')).toBe('light')
+  await user.selectOptions(screen.getByLabelText('Table spacing'),'compact')
   expect(localStorage.getItem('slx-density')).toBe('compact')
   await user.click(screen.getByRole('button',{name:'Reset preferences'}));expect(localStorage.getItem('slx-density')).toBeNull()
+  expect(document.documentElement.dataset.theme).toBe('dark')
   await user.click(screen.getByRole('button',{name:'Help & shortcuts'}));await user.click(screen.getByRole('button',{name:'Open training activity'}))
   expect(screen.getByRole('heading',{name:'Training sessions'})).toBeTruthy()
 })
@@ -168,7 +267,7 @@ test('monthly selection, report modal, export and print actions work', async () 
   await user.click(within(dialog).getByRole('button',{name:'Download CSV'}));expect(download).toHaveBeenCalled()
   await user.click(within(dialog).getByRole('button',{name:'Print / Save PDF'}));expect(print).toHaveBeenCalled()
   await user.click(within(dialog).getAllByRole('button',{name:'Close',exact:true})[1]);await waitFor(()=>expect(screen.queryByRole('dialog')).toBeNull())
-  await user.click(screen.getByRole('button',{name:'Export report'}));await screen.findByRole('heading',{name:'Reports'})
+  await user.click(screen.getByRole('link',{name:'Reports'}));await screen.findByRole('heading',{name:'Reports'})
 })
 test('network failure is visible and retry recovers the sessions', async () => {
   const user=userEvent.setup(), healthy=fetch.getMockImplementation()

@@ -12,7 +12,7 @@
     {
       "binding": "DB",
       "database_name": "secure-labx-training",
-      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "database_id": "10ee1378-f9c4-4fb3-93a5-48e021c035e8",
       "migrations_dir": "drizzle"
     }
   ],

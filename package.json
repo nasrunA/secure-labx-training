@@ -6,11 +6,13 @@
   "scripts": {
     "start": "vite --port 3000 --strictPort",
     "dev": "vite --port 3000 --strictPort",
+    "local": "node scripts/start-local.mjs",
     "build": "node scripts/build-hosted.mjs",
     "preview": "vite preview",
-    "deploy": "wrangler deploy",
-    "cf:preview": "wrangler dev",
-    "cf:db:init": "wrangler d1 migrations apply DB --remote",
+    "deploy": "npx --yes wrangler@4 deploy",
+    "cf:preview": "npx --yes wrangler@4 dev",
+    "cf:db:init": "npx --yes wrangler@4 d1 migrations apply DB --remote",
+    "auth:bootstrap": "node scripts/bootstrap-superadmin.mjs",
     "test": "vitest run"
   },
   "dependencies": {
@@ -25,8 +27,7 @@
     "@vitejs/plugin-react": "^4.3.4",
     "jsdom": "^25.0.1",
     "vite": "^5.4.14",
-    "vitest": "^2.1.9",
-    "wrangler": "^4.0.0"
+    "vitest": "^2.1.9"
   },
   "allowScripts": {
     "esbuild@0.21.5": true
