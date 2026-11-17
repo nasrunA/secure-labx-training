@@ -42,6 +42,24 @@
 .training-record-filters .date-filter{display:grid;gap:5px;color:#607582;font-size:10px;font-weight:700}.training-record-filters .date-filter input{height:38px;min-width:145px;border:1px solid #cddce4;border-radius:4px;padding:0 9px;background:#fff;color:#384855;font:inherit;font-size:12px}
 .training-record-filters .slx-button{height:38px;border-color:#b9cbd5;background:#fff;color:#315064;font-weight:700}
 .training-record-filters .slx-button:hover{background:#e6f1f4;border-color:#8fadb9}
+.training-records-page .training-record-metrics>div{background:#1b272e;border-color:#34464f;box-shadow:none}
+.training-records-page .training-record-metrics span{color:#aab9c1}
+.training-records-page .training-record-metrics strong{color:#f1f5f7}
+.training-records-page .training-record-filters{background:#1b272e;border-color:#34464f;box-shadow:none}
+.training-records-page .training-record-filters .slx-search,.training-records-page .training-record-filters select,.training-records-page .training-record-filters .date-filter input{background:#121c22;border-color:#40545f;color:#e1e8ed}
+.training-records-page .training-record-filters .slx-search input{background:transparent;color:#e1e8ed}
+.training-records-page .training-record-filters .slx-search svg{color:#a4b2bd}
+.training-records-page .training-record-filters .date-filter{color:#a4b2bd}
+.training-records-page .training-record-filters .slx-button{background:#263942;border-color:#40545f;color:#e1e8ed}
+.training-records-page .slx-panel{background:#1b272e;border-color:#34464f;box-shadow:none}
+.training-records-page .slx-panel-header{border-bottom-color:#34464f}
+.training-records-page .slx-panel-header h2{color:#f1f5f7}
+.training-records-page .training-record-count{color:#a4b2bd}
+.training-records-page .training-record-table th{background:#263942!important;color:#dce6ec!important;border-bottom-color:#40545f!important}
+.training-records-page .training-record-table td{background:#1b272e;color:#d0dbe2!important;border-bottom-color:#34464f!important}
+.training-records-page .training-record-table tbody tr:nth-child(even) td{background:#202e36}
+.training-records-page .training-record-table td strong{color:#f1f5f7!important}
+.training-records-page .training-record-table tbody tr:hover td{background:#293a44}
 @media(max-width:850px){.training-record-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.training-record-filters{flex-wrap:wrap}.training-record-filters .slx-search{flex-basis:100%}.training-record-filters select{min-width:calc(50% - 5px)}}
 @media(max-width:500px){.training-record-metrics>div{padding:13px}.training-record-metrics strong{font-size:17px}.training-record-filters select{min-width:100%}}
 

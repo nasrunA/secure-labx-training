@@ -258,6 +258,72 @@
   color: #a4b2bd;
 }
 
+/* Shared page controls and cards should follow the selected dark workspace theme. */
+:root[data-theme='dark'] .metric,
+:root[data-theme='dark'] .module-data-toolbar,
+:root[data-theme='dark'] .summary-filter,
+:root[data-theme='dark'] .summary-filter button,
+:root[data-theme='dark'] .summary-toolbar,
+:root[data-theme='dark'] .rebate-toolbar {
+  color: #e1e8ed;
+  background-color: #1b272f;
+  border-color: #354650;
+}
+
+:root[data-theme='dark'] .metric > span,
+:root[data-theme='dark'] .metric small,
+:root[data-theme='dark'] .summary-sort,
+:root[data-theme='dark'] .rebate-overview span,
+:root[data-theme='dark'] .rebate-detail-head small,
+:root[data-theme='dark'] .document-upload span {
+  color: #a4b2bd;
+}
+
+:root[data-theme='dark'] .metric strong,
+:root[data-theme='dark'] .rebate-overview strong {
+  color: #e1e8ed;
+}
+
+:root[data-theme='dark'] .module-data-toolbar .slx-search,
+:root[data-theme='dark'] .module-data-toolbar select,
+:root[data-theme='dark'] .module-data-toolbar input[type='date'],
+:root[data-theme='dark'] .slx-filter-panel input[type='date'],
+:root[data-theme='dark'] .rebate-toolbar input,
+:root[data-theme='dark'] .summary-filter button {
+  color: #e1e8ed;
+  background-color: #121c22;
+  border-color: #40545f;
+}
+
+:root[data-theme='dark'] .module-data-toolbar .slx-search input,
+:root[data-theme='dark'] .summary-toolbar .slx-search input {
+  color: #e1e8ed;
+  background: transparent;
+}
+
+:root[data-theme='dark'] .summary-filter button.active {
+  color: #a5e0d8;
+  background-color: #1c3a37;
+}
+
+:root[data-theme='dark'] .summary-filter button.active.available {
+  color: #a9dfa9;
+  background-color: #263b2d;
+}
+
+:root[data-theme='dark'] .summary-filter button.active.used {
+  color: #ffb1ab;
+  background-color: #3c292b;
+}
+
+:root[data-theme='dark'] .summary-table.slx-table tbody tr:nth-child(even) td {
+  background-color: #1d2a32;
+}
+
+:root[data-theme='dark'] .summary-table.slx-table tbody tr:hover td {
+  background-color: #2a303d;
+}
+
 @media (prefers-reduced-motion: no-preference) {
   :root[data-theme='dark'] body,
   :root[data-theme='dark'] .slx-topbar,
