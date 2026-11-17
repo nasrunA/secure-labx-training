@@ -9,6 +9,37 @@ function decodeDataUrl(data){const match=/^data:([^;,]+)?(;base64)?,(.*)$/.exec(
 async function storeFiles(profile,env,companyId){for(const group of ['referenceFiles','relatedFiles']){if(!Array.isArray(profile[group]))continue;profile[group]=await Promise.all(profile[group].map(async file=>{if(!file?.data?.startsWith('data:'))return file;const decoded=decodeDataUrl(file.data);if(!decoded)return file;const key=`companies/${companyId}/${newId()}`;await env.BUCKET.put(key,decoded.bytes,{httpMetadata:{contentType:file.type||decoded.type},customMetadata:{filename:file.name||'document'}});return{name:file.name||'document',type:file.type||decoded.type,size:file.size||decoded.bytes.length,key,data:`/api/files/${encodeURIComponent(key)}`}}))}return profile}
 function exposeFiles(profile){for(const group of ['referenceFiles','relatedFiles'])if(Array.isArray(profile[group]))profile[group]=profile[group].map(file=>file?.key?{...file,data:`/api/files/${encodeURIComponent(file.key)}`}:file);return profile}
 async function removeStoredFiles(env,profiles){const keys=profiles.flatMap(row=>{const profile=parse(row.rebateProfile);return['referenceFiles','relatedFiles'].flatMap(group=>Array.isArray(profile[group])?profile[group].map(file=>file?.key).filter(Boolean):[])});if(keys.length&&env.BUCKET)await Promise.all(keys.map(key=>env.BUCKET.delete(key)))}
+async function storeCatalogueFile(file,env,id){if(!file?.data?.startsWith('data:'))return file;const decoded=decodeDataUrl(file.data);if(!decoded)return file;const key=`catalogue/${id}/${newId()}`;await env.BUCKET.put(key,decoded.bytes,{httpMetadata:{contentType:file.type||decoded.type},customMetadata:{filename:file.name||'catalogue-item'}});return{name:file.name||'catalogue-item',type:file.type||decoded.type,size:file.size||decoded.bytes.length,key}}
+async function catalogueRoutes(request,env,path,user){
+  const fileMatch=path.match(/^catalogue\/([^/]+)\/file$/)
+  if(fileMatch&&request.method==='GET'){
+    const item=await env.DB.prepare('SELECT file_key,file_name,file_type FROM catalogue_products WHERE id=?').bind(fileMatch[1]).first();if(!item)return error('Catalogue product was not found.',404)
+    const object=await env.BUCKET.get(item.file_key);if(!object)return error('Catalogue file was not found.',404)
+    const responseHeaders=new Headers();object.writeHttpMetadata(responseHeaders);responseHeaders.set('content-disposition',`inline; filename="${(item.file_name||'catalogue-item').replaceAll('"','')}"`);responseHeaders.set('cache-control','private, no-store');return new Response(object.body,{headers:responseHeaders})
+  }
+  if(path==='catalogue'&&request.method==='GET'){const {results}=await env.DB.prepare('SELECT id,title,description,file_name fileName,file_type fileType,file_size fileSize,position,created_at createdAt FROM catalogue_products ORDER BY position,created_at DESC').all();return json(results.map(item=>({...item,url:`/api/catalogue/${item.id}/file`})))}
+  if(user.role!=='superadmin')return error('Superadmin access is required.',403)
+  if(path==='catalogue'&&request.method==='POST'){
+    const input=await request.json(),title=String(input.title||'').trim(),description=String(input.description||'').trim(),file=await storeCatalogueFile(input.file,env,newId())
+    if(!title||!file?.key)return error('Provide a product title and upload a poster or document.')
+    const id=newId(),created=now();await env.DB.prepare('INSERT INTO catalogue_products(id,title,description,file_key,file_name,file_type,file_size,position,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?)').bind(id,title,description,file.key,file.name,file.type,file.size||0,Number(input.position)||0,created,created).run()
+    return json({id,title,description,fileName:file.name,fileType:file.type,fileSize:file.size||0,url:`/api/catalogue/${id}/file`},201)
+  }
+  const match=path.match(/^catalogue\/([^/]+)$/)
+  if(match&&request.method==='PATCH'){
+    const current=await env.DB.prepare('SELECT * FROM catalogue_products WHERE id=?').bind(match[1]).first();if(!current)return error('Catalogue product was not found.',404)
+    const input=await request.json(),file=await storeCatalogueFile(input.file,env,current.id),title=String(input.title??current.title).trim(),description=String(input.description??current.description).trim()
+    if(!title)return error('Enter a product title.')
+    await env.DB.prepare('UPDATE catalogue_products SET title=?,description=?,file_key=?,file_name=?,file_type=?,file_size=?,position=?,updated_at=? WHERE id=?').bind(title,description,file?.key||current.file_key,file?.name||current.file_name,file?.type||current.file_type,file?.size||current.file_size,Number(input.position??current.position)||0,now(),current.id).run()
+    if(file?.key&&env.BUCKET)await env.BUCKET.delete(current.file_key)
+    return json({saved:true})
+  }
+  if(match&&request.method==='DELETE'){
+    const current=await env.DB.prepare('SELECT file_key FROM catalogue_products WHERE id=?').bind(match[1]).first();if(!current)return error('Catalogue product was not found.',404)
+    await env.DB.prepare('DELETE FROM catalogue_products WHERE id=?').bind(match[1]).run();if(env.BUCKET)await env.BUCKET.delete(current.file_key);return json({deleted:true})
+  }
+  return error('Route not found.',404)
+}
 
 const number=value=>{const parsed=Number(String(value??'').replace(/[^0-9.-]/g,''));return Number.isFinite(parsed)?parsed:0}
 const rounded=value=>Math.round((value+Number.EPSILON)*100)/100
@@ -161,6 +192,7 @@ export default{async fetch(request,env){const url=new URL(request.url);if(!url.p
     return json({user:{id:user.id,email,role:user.role}})
   }
   if(path==='accounts'||path.startsWith('accounts/'))return accountRoutes(request,env,path,user)
+  if(path==='catalogue'||path.startsWith('catalogue/'))return catalogueRoutes(request,env,path,user)
   if(request.method==='GET'&&path.startsWith('files/')){const key=decodeURIComponent(path.slice(6)),object=await env.BUCKET.get(key);if(!object)return new Response('Not found',{status:404});const responseHeaders=new Headers();object.writeHttpMetadata(responseHeaders);responseHeaders.set('etag',object.httpEtag);responseHeaders.set('content-disposition',`inline; filename="${(object.customMetadata?.filename||'document').replaceAll('"','')}"`);return new Response(object.body,{headers:responseHeaders})}
   if(request.method==='GET'&&path==='training-sessions'){const search=`%${url.searchParams.get('search')||''}%`;const {results}=await env.DB.prepare(`SELECT p.id,p.reference_code referenceCode,p.name,p.start_date startDate,p.end_date endDate,p.location,COUNT(c.id) companyCount,COALESCE(SUM(c.participant_count),0) participantCount,COALESCE(SUM(c.gross_hrdc_claim),0) totalAmount FROM training_programs p LEFT JOIN training_companies c ON c.training_program_id=p.id WHERE p.name LIKE ? OR COALESCE(p.location,'') LIKE ? GROUP BY p.id ORDER BY p.start_date`).bind(search,search).all();return json(results)}
   let match=path.match(/^training-sessions\/([^/]+)\/companies$/)

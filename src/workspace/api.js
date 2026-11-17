@@ -12,7 +12,8 @@ export async function api(path, options = {}) {
   let response
   try {
     const base = import.meta.env.VITE_API_BASE_URL || '/api'
-    response = await fetch(`${base}${path}`, { ...options, headers: {'Content-Type': 'application/json', ...options.headers}, signal: options.signal || AbortSignal.timeout(15000) })
+    const headers={...options.headers};if(options.body!==undefined&&!(options.body instanceof FormData))headers['Content-Type']='application/json'
+    response = await fetch(`${base}${path}`, { ...options, headers, signal: options.signal || AbortSignal.timeout(15000) })
   } catch { throw new Error('Cannot connect to the server. Check that the backend and database are running, then retry.') }
   const body = await response.json().catch(() => null)
   if (!response.ok) throw new Error(body?.error?.message || 'The request could not be completed. Please try again.')
@@ -23,6 +24,7 @@ export async function loadTraining() {
   const groups = await Promise.all(sessions.map(async session => (await api(`/training-sessions/${session.id}/companies`)).map(company => ({...company, sessionId: session.id, sessionName: session.name}))))
   return {sessions, companies: groups.flat()}
 }
+export const loadCatalogue = () => api('/catalogue')
 export function sortSessions(sessions, query, mode, companies, location = '') {
   const counts = id => companies.filter(c => c.sessionId === id).length
   return sessions.filter(s => `${s.name} ${s.location || ''}`.toLowerCase().includes(query.toLowerCase()) && (!location || s.location === location)).slice().sort((a, b) => {

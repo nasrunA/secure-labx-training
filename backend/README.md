@@ -24,6 +24,12 @@ Get-Content -Raw database/migrations/003_auth_accounts.sql | docker exec -i secu
 Get-Content -Raw database/migrations/004_participant_phone_number.sql | docker exec -i secure-labx-postgres psql -U secure_labx_app -d secure_labx
 ```
 
+Catalogue management uses PostgreSQL. Apply its additive migration to an existing database with:
+
+```powershell
+Get-Content -Raw database/migrations/005_catalogue_products.sql | docker exec -i secure-labx-postgres psql -U secure_labx_app -d secure_labx
+```
+
 Then start both the API and frontend from the repository root with:
 
 ```powershell

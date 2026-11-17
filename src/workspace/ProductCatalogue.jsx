@@ -1,0 +1,38 @@
+import React, {Suspense, lazy, useEffect, useRef, useState} from 'react'
+import {api, loadCatalogue} from './api'
+import {Button, Empty, ErrorMessage, Field, Modal, PageTitle, Panel} from './UI'
+import './ProductCatalogue.css'
+const PdfPreview=lazy(()=>import('./PdfPreview'))
+
+const emptyForm={id:'',title:'',description:'',position:0,file:null}
+function fileData(file){return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve({name:file.name,type:file.type,size:file.size,data:reader.result});reader.onerror=()=>reject(new Error('The selected file could not be read.'));reader.readAsDataURL(file)})}
+function ProductCard({item,manage,onEdit,onDelete}){
+ const image=item.fileType?.startsWith('image/')
+ return <article className="catalogue-card"><div className={`catalogue-preview ${item.fileType==='application/pdf'?'is-pdf':''}`}>
+   {image?<a className="catalogue-image-link" href={item.url} target="_blank" rel="noreferrer" aria-label={`View ${item.title}`}><img src={item.url} alt={item.title}/><span className="catalogue-view">View advertisement</span></a>:item.fileType==='application/pdf'?<Suspense fallback={<div className="catalogue-pdf-status">Loading PDF viewer…</div>}><PdfPreview item={item}/></Suspense>:<a className="catalogue-other-file" href={item.url} target="_blank" rel="noreferrer"><span className="catalogue-file-icon">FILE</span><span className="catalogue-view">View advertisement</span></a>}
+ </div><div className="catalogue-card-body"><h2>{item.title}</h2>{item.description&&<p>{item.description}</p>}<a className="catalogue-file-link" href={item.url} target="_blank" rel="noreferrer">Open {item.fileName||'advertisement'}</a>{manage&&<div className="catalogue-actions"><Button onClick={()=>onEdit(item)}>Edit</Button><Button className="danger-quiet" onClick={()=>onDelete(item)}>Delete</Button></div>}</div></article>
+}
+export default function ProductCatalogue({manage=false,notify=()=>{}}){
+ const [items,setItems]=useState([]),[loading,setLoading]=useState(true),[error,setError]=useState(''),[form,setForm]=useState(emptyForm),[busy,setBusy]=useState(false),[confirm,setConfirm]=useState(null),[pasteNotice,setPasteNotice]=useState('')
+ const pasteTarget=useRef(null),[previewUrl,setPreviewUrl]=useState('')
+ const load=async()=>{setLoading(true);setError('');try{setItems(await loadCatalogue())}catch(e){setError(e.message)}finally{setLoading(false)}}
+ useEffect(()=>{load()},[])
+ useEffect(()=>{if(!form.file?.type?.startsWith('image/')){setPreviewUrl('');return}const url=URL.createObjectURL(form.file);setPreviewUrl(url);return()=>URL.revokeObjectURL(url)},[form.file])
+ const edit=item=>{setForm({...emptyForm,id:item.id,title:item.title,description:item.description||'',position:item.position||0,file:null});setPasteNotice('')}
+ const acceptPastedImage=file=>{
+  if(!file?.type?.startsWith('image/')){setPasteNotice('Clipboard does not contain an image. Copy an image and paste it here.');return}
+  if(file.size>30*1024*1024){setPasteNotice('This image is larger than 30 MB. Choose a smaller image.');return}
+  const extension=file.type==='image/png'?'png':file.type==='image/jpeg'?'jpg':file.type==='image/webp'?'webp':file.type==='image/gif'?'gif':'png'
+  const namedFile=new File([file],`pasted-advertisement.${extension}`,{type:file.type})
+  setForm(current=>({...current,file:namedFile}));setPasteNotice('Image pasted and ready to upload.')
+ }
+ const handlePaste=event=>{const image=Array.from(event.clipboardData?.items||[]).find(item=>item.type.startsWith('image/'));if(!image)return;event.preventDefault();acceptPastedImage(image.getAsFile())}
+ const save=async event=>{event.preventDefault();setBusy(true);try{const input={title:form.title,description:form.description,position:Number(form.position)||0};if(form.file)input.file=await fileData(form.file);await api(form.id?`/catalogue/${form.id}`:'/catalogue',{method:form.id?'PATCH':'POST',body:JSON.stringify(input)});setForm(emptyForm);await load();notify(form.id?'Catalogue product updated.':'Product added to catalogue.')}catch(e){setError(e.message)}finally{setBusy(false)}}
+ const remove=async()=>{setBusy(true);try{await api(`/catalogue/${confirm.id}`,{method:'DELETE'});setConfirm(null);await load();notify('Catalogue product removed.')}catch(e){setError(e.message)}finally{setBusy(false)}}
+ return <div className="catalogue-page"><PageTitle kicker={manage?'SUPERADMIN · PRODUCT MANAGEMENT':'PRODUCTS & SERVICES'} title="Product Catalogue">{manage?'Upload and manage product advertisements. Changes appear in the catalogue for applicants and trainers.':'Browse our product advertisements and open the uploaded poster or document for details.'}</PageTitle>
+ {manage&&<Panel title={form.id?'Edit product advertisement':'Add product advertisement'} subtitle="Add as many products as you need. Upload a poster, image or PDF document, or paste a copied image."><form className="catalogue-form" onSubmit={save}><Field label="Product name"><input required maxLength={200} value={form.title} onChange={e=>setForm({...form,title:e.target.value})} placeholder="e.g. GEP Pro"/></Field><Field label="Description"><textarea rows="3" value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Short details shown in the catalogue"/></Field><div className="catalogue-form-row"><Field label="Display order"><input type="number" min="0" value={form.position} onChange={e=>setForm({...form,position:e.target.value})}/></Field><Field label={form.id?'Replace poster or document (optional)':'Poster or document'}><input type="file" accept="image/*,application/pdf" required={!form.id&&!form.file} onChange={e=>{const file=e.target.files?.[0]||null;if(file?.size>30*1024*1024){setPasteNotice('This file is larger than 30 MB. Choose a smaller file.');e.target.value='';setForm({...form,file:null});return}setForm({...form,file});setPasteNotice('')}}/></Field></div><div ref={pasteTarget} className="catalogue-paste-target" tabIndex="0" role="button" aria-label="Paste an image for the product advertisement" onPaste={handlePaste} onClick={()=>pasteTarget.current?.focus()}><strong>{form.file?`Selected: ${form.file.name}`:'Paste copied image here'}</strong><span>Click this area, then press Ctrl+V or Cmd+V, or use Paste from the context menu. Maximum file size: 30 MB.</span>{previewUrl&&<img className="catalogue-paste-preview" src={previewUrl} alt="Pasted product preview"/>}{pasteNotice&&<small role="status">{pasteNotice}</small>}</div><div className="catalogue-form-actions"><Button type="submit" variant="primary" disabled={busy}>{busy?'Saving…':form.id?'Save product':'Add product'}</Button>{form.id&&<Button disabled={busy} onClick={()=>{setForm(emptyForm);setPasteNotice('')}}>Cancel edit</Button>}</div></form></Panel>}
+ <ErrorMessage message={error} retry={load}/>
+ {loading?<Panel><div className="slx-loading">Loading product catalogue…</div></Panel>:items.length?<div className="catalogue-grid">{items.map(item=><ProductCard key={item.id} item={item} manage={manage} onEdit={edit} onDelete={setConfirm}/>)}</div>:<Panel><Empty title="No products yet">{manage?'Add a product advertisement above to publish it.':'Product advertisements will appear here when they are available.'}</Empty></Panel>}
+ {confirm&&<Modal title="Remove product advertisement" close={()=>!busy&&setConfirm(null)} busy={busy}><p>Remove “{confirm.title}” and its uploaded file from the catalogue?</p><div className="catalogue-form-actions"><Button variant="danger" disabled={busy} onClick={remove}>{busy?'Removing…':'Remove product'}</Button><Button disabled={busy} onClick={()=>setConfirm(null)}>Cancel</Button></div></Modal>}
+ </div>
+}
