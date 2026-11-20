@@ -1,4 +1,4 @@
-# Secure LabX
+# Secure LabX training administration
 
 Secure LabX is a web application for training administration. It brings training sessions, company and participant records, grant and rebate tracking, credit management, reports, and product advertisements into one role-based workspace.
 
